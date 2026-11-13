@@ -1,0 +1,2402 @@
+<html lang="es" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tablero Financiero y Fiscal RESICO (México)</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- SheetJS (XLSX) para procesar archivos Excel localmente -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+    <!-- LZ-String para comprimir y codificar los datos en el enlace compartido -->
+    <script src="https://cdn.jsdelivr.net/npm/lz-string@1.5.0/libs/lz-string.min.js"></script>
+    <!-- Chart.js para gráficos interactivos -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Google Fonts: Inter & JetBrains Mono -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        slate: {
+                            850: '#151e2e',
+                            900: '#0f172a',
+                            950: '#090d16',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Estilos personalizados para scrollbars y transiciones suaves */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.3); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(148, 163, 184, 0.5); }
+        
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .light .glass-panel {
+            background: rgba(255, 255, 255, 0.85);
+            border: 1px solid rgba(15, 23, 42, 0.08);
+        }
+        
+        @keyframes pulse-subtle {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+        .animate-pulse-subtle { animation: pulse-subtle 2s infinite; }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans transition-colors duration-200 selection:bg-emerald-500/30 selection:text-emerald-200">
+
+    <!-- Notificación Toast Flotante (Reemplazo de alert) -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- Barra de Navegación Superior -->
+    <header class="sticky top-0 z-30 border-b border-slate-800/80 bg-slate-950/90 backdrop-blur-md">
+        <div class="max-w-[1600px] mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
+            <!-- Logo Personalizado (Sergio Vázquez • Contador Público, sin teléfono) y Título -->
+            <div class="flex items-center gap-3.5">
+                <!-- SVG vectorial exacto del monograma S/V y firma institucional -->
+                <div class="flex items-center gap-2.5 bg-white text-slate-900 px-3 py-1.5 rounded-xl shadow-md border border-slate-200/80 shrink-0">
+                    <svg class="w-9 h-9 shrink-0" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Logo Sergio Vázquez">
+                        <circle cx="50" cy="50" r="45" stroke="#333333" stroke-width="3.2"/>
+                        <text x="24" y="55" font-family="Georgia, 'Times New Roman', serif" font-size="38" fill="#333333">S</text>
+                        <line x1="66" y1="26" x2="34" y2="74" stroke="#333333" stroke-width="2.8" stroke-linecap="round"/>
+                        <text x="48" y="78" font-family="Georgia, 'Times New Roman', serif" font-size="38" fill="#333333">V</text>
+                    </svg>
+                    <div class="h-7 w-[1.5px] bg-slate-400"></div>
+                    <div class="leading-tight pr-1">
+                        <div class="text-[11px] sm:text-xs font-extrabold tracking-[0.14em] text-slate-800 uppercase">SERGIO VÁZQUEZ</div>
+                        <div class="text-[10px] italic font-serif text-slate-600 tracking-wide">Contador Público</div>
+                    </div>
+                </div>
+
+                <div class="hidden md:block h-8 w-px bg-slate-800"></div>
+
+                <div class="hidden sm:block">
+                    <div class="flex items-center gap-2">
+                        <h1 class="font-bold text-sm lg:text-base tracking-tight text-white">TROMA • Control Fiscal RESICO</h1>
+                        <span class="hidden xl:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                            PM Art. 206 LISR
+                        </span>
+                    </div>
+                    <p class="text-[11px] text-slate-400 hidden lg:block">Estado de Resultados Anual y Mensual (Enero – Diciembre)</p>
+                </div>
+            </div>
+
+            <!-- Controles Globales: Selector de Mes, Cargar Excel, Exportar Base -->
+            <div class="flex items-center gap-2 sm:gap-3">
+                <!-- Selector de Periodo -->
+                <div class="relative">
+                    <select id="month-selector" onchange="handleMonthChange(this.value)" class="appearance-none bg-slate-900 border border-slate-700 hover:border-slate-600 text-slate-200 text-xs sm:text-sm rounded-xl pl-3 pr-8 py-2 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition cursor-pointer">
+                        <option value="ALL">Acumulado Anual (Enero - Diciembre)</option>
+                    </select>
+                    <i data-lucide="chevron-down" class="w-4 h-4 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+                </div>
+
+                <!-- Botón Subir Excel -->
+                <label for="excel-upload" class="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] text-white text-xs sm:text-sm font-medium px-3.5 py-2 rounded-xl shadow-lg shadow-emerald-600/20 cursor-pointer transition">
+                    <i data-lucide="upload-cloud" class="w-4 h-4"></i>
+                    <span class="hidden md:inline">Cargar Excel</span>
+                    <input type="file" id="excel-upload" accept=".xlsx, .xls, .csv" class="hidden" onchange="handleFileUpload(event)">
+                </label>
+
+                <!-- Botón Descargar Plantilla / Base Actualizada -->
+                <button onclick="downloadBaseExcel()" title="Descargar archivo Excel base listo para futuras actualizaciones" class="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs sm:text-sm font-medium px-3 py-2 rounded-xl transition cursor-pointer">
+                    <i data-lucide="file-spreadsheet" class="w-4 h-4 text-emerald-400"></i>
+                    <span class="hidden lg:inline">Exportar Base</span>
+                </button>
+
+                <!-- Botón Compartir Enlace con Datos Incluidos -->
+                <button onclick="copyShareableLink()" title="Copiar enlace directo con toda la información clasificada del Excel" class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 active:scale-[0.98] text-white text-xs sm:text-sm font-medium px-3.5 py-2 rounded-xl shadow-lg shadow-indigo-600/20 transition cursor-pointer">
+                    <i data-lucide="share-2" class="w-4 h-4"></i>
+                    <span class="hidden sm:inline">Compartir Enlace</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Barra Rápida de Selección por Mes (Enero a Diciembre por separado) -->
+        <div class="border-t border-slate-800/70 bg-slate-900/60">
+            <div class="max-w-[1600px] mx-auto px-4 sm:px-6 py-2 flex items-center gap-1.5 overflow-x-auto" id="month-pills-bar">
+                <!-- Generado dinámicamente con Anual + Enero a Diciembre -->
+            </div>
+        </div>
+    </header>
+
+    <!-- Contenido Principal -->
+    <main class="flex-1 max-w-[1600px] w-full mx-auto px-4 sm:px-6 py-6 space-y-6">
+
+        <!-- Banner de Estado del Archivo Base -->
+        <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-3.5 px-4 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div class="flex items-center gap-2.5">
+                <span class="flex h-2.5 w-2.5 relative">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                </span>
+                <span class="text-slate-300">Archivo activo: <strong id="active-filename" class="text-white font-mono">LINEA INGREOS GASTOS TROMA.xlsx (Base Precargada)</strong></span>
+                <span id="record-count-badge" class="px-2 py-0.5 rounded-md bg-slate-800 text-slate-400 font-mono">0 movimientos</span>
+            </div>
+            <div class="flex items-center gap-4 text-slate-400">
+                <button onclick="resetToDefaultData()" class="hover:text-emerald-400 underline decoration-slate-700 underline-offset-4 transition">Restaurar datos originales</button>
+                <button onclick="openNewMovementModal()" class="text-emerald-400 hover:text-emerald-300 font-medium flex items-center gap-1">
+                    <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i> Agregar registro manual
+                </button>
+            </div>
+        </div>
+
+        <!-- KPIs Principales (4 Tarjetas) -->
+        <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <!-- KPI 1: Ingresos Facturados -->
+            <div class="bg-slate-900/80 border border-slate-800/90 rounded-2xl p-5 flex flex-col justify-between relative overflow-hidden">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-medium uppercase tracking-wider text-slate-400">Ingresos Cobrados</span>
+                    <div class="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
+                        <i data-lucide="trending-up" class="w-4 h-4"></i>
+                    </div>
+                </div>
+                <div class="my-3">
+                    <div id="kpi-ingresos" class="text-2xl sm:text-3xl font-bold font-mono text-white tracking-tight">$0.00</div>
+                    <p id="kpi-ingresos-sub" class="text-xs text-slate-400 mt-1">Base gravable acumulada (sin IVA)</p>
+                </div>
+                <div class="flex items-center justify-between text-xs pt-2 border-t border-slate-800/80">
+                    <span class="text-slate-400">IVA Trasladado:</span>
+                    <span id="kpi-iva-trasladado" class="font-mono font-semibold text-emerald-400">$0.00</span>
+                </div>
+            </div>
+
+            <!-- KPI 2: Gastos Totales (Deducibles vs ND) -->
+            <div class="bg-slate-900/80 border border-slate-800/90 rounded-2xl p-5 flex flex-col justify-between relative overflow-hidden">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-medium uppercase tracking-wider text-slate-400">Egresos Totales</span>
+                    <div class="w-8 h-8 rounded-lg bg-rose-500/10 text-rose-400 flex items-center justify-center">
+                        <i data-lucide="trending-down" class="w-4 h-4"></i>
+                    </div>
+                </div>
+                <div class="my-3">
+                    <div id="kpi-gastos-total" class="text-2xl sm:text-3xl font-bold font-mono text-white tracking-tight">$0.00</div>
+                    <div class="flex items-center gap-2 mt-1.5 text-xs">
+                        <span class="inline-flex items-center gap-1 text-emerald-400 font-medium">
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                            Ded: <span id="kpi-gastos-ded" class="font-mono">$0</span>
+                        </span>
+                        <span class="text-slate-600">|</span>
+                        <span class="inline-flex items-center gap-1 text-amber-400 font-medium">
+                            <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                            ND: <span id="kpi-gastos-nd" class="font-mono">$0</span>
+                        </span>
+                    </div>
+                </div>
+                <div class="flex items-center justify-between text-xs pt-2 border-t border-slate-800/80">
+                    <span class="text-slate-400">IVA Acreditable (Facturado):</span>
+                    <span id="kpi-iva-acreditable" class="font-mono font-semibold text-sky-400">$0.00</span>
+                </div>
+            </div>
+
+            <!-- KPI 3: Utilidad Neta Real vs Fiscal -->
+            <div class="bg-slate-900/80 border border-slate-800/90 rounded-2xl p-5 flex flex-col justify-between relative overflow-hidden">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-medium uppercase tracking-wider text-slate-400">Utilidad Neta Contable</span>
+                    <div class="w-8 h-8 rounded-lg bg-indigo-500/10 text-indigo-400 flex items-center justify-center">
+                        <i data-lucide="wallet" class="w-4 h-4"></i>
+                    </div>
+                </div>
+                <div class="my-3">
+                    <div id="kpi-utilidad-contable" class="text-2xl sm:text-3xl font-bold font-mono text-white tracking-tight">$0.00</div>
+                    <p id="kpi-margen-neto" class="text-xs text-slate-400 mt-1">Margen neto: 0.0%</p>
+                </div>
+                <div class="flex items-center justify-between text-xs pt-2 border-t border-slate-800/80">
+                    <span class="text-slate-400" title="Ingresos menos Gastos Autorizados Deducibles">Base Fiscal ISR (Utilidad Fiscal):</span>
+                    <span id="kpi-utilidad-fiscal" class="font-mono font-semibold text-indigo-300">$0.00</span>
+                </div>
+            </div>
+
+            <!-- KPI 4: Carga Fiscal Total (ISR RESICO + IVA por Pagar) -->
+            <div class="bg-gradient-to-br from-slate-900 via-slate-900 to-emerald-950/40 border border-emerald-500/30 rounded-2xl p-5 flex flex-col justify-between relative overflow-hidden">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-emerald-400">Impuestos Estimados SAT</span>
+                    <div class="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-300 flex items-center justify-center">
+                        <i data-lucide="scale" class="w-4 h-4"></i>
+                    </div>
+                </div>
+                <div class="my-3">
+                    <div id="kpi-impuestos-total" class="text-2xl sm:text-3xl font-bold font-mono text-emerald-300 tracking-tight">$0.00</div>
+                    <p class="text-xs text-slate-400 mt-1">Suma de ISR RESICO + IVA Neto a Cargo</p>
+                </div>
+                <div class="flex items-center justify-between text-xs pt-2 border-t border-emerald-500/20">
+                    <span class="text-slate-300">ISR (30% s/Base): <strong id="kpi-isr-val" class="font-mono text-white">$0</strong></span>
+                    <span class="text-slate-300">IVA Neto: <strong id="kpi-iva-val" class="font-mono text-white">$0</strong></span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Pestañas de Navegación del Tablero -->
+        <div class="border-b border-slate-800 flex items-center gap-2 overflow-x-auto pb-px">
+            <button onclick="switchTab('estado-resultados')" id="tab-estado-resultados" class="tab-btn active px-4 py-2.5 text-sm font-medium border-b-2 border-emerald-500 text-emerald-400 whitespace-nowrap flex items-center gap-2 transition">
+                <i data-lucide="file-spreadsheet" class="w-4 h-4"></i>
+                Estado de Resultados y Fiscal
+            </button>
+            <button onclick="switchTab('comparativo-mensual')" id="tab-comparativo-mensual" class="tab-btn px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 whitespace-nowrap flex items-center gap-2 transition">
+                <i data-lucide="calendar-range" class="w-4 h-4"></i>
+                Análisis Mes por Mes (Ene–Dic)
+            </button>
+            <button onclick="switchTab('detalle-movimientos')" id="tab-detalle-movimientos" class="tab-btn px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 whitespace-nowrap flex items-center gap-2 transition">
+                <i data-lucide="list-filter" class="w-4 h-4"></i>
+                Clasificación de Gastos (SAT / ND)
+            </button>
+            <button onclick="switchTab('graficos')" id="tab-graficos" class="tab-btn px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 whitespace-nowrap flex items-center gap-2 transition">
+                <i data-lucide="bar-chart-3" class="w-4 h-4"></i>
+                Análisis Visual Mensual
+            </button>
+            <button onclick="switchTab('asistente-ia')" id="tab-asistente-ia" class="tab-btn px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 whitespace-nowrap flex items-center gap-2 transition">
+                <i data-lucide="sparkles" class="w-4 h-4 text-amber-400"></i>
+                Asesor Fiscal IA (Gemini)
+            </button>
+        </div>
+
+        <!-- VISTA 1: ESTADO DE RESULTADOS Y CÁLCULO DE IMPUESTOS -->
+        <section id="view-estado-resultados" class="space-y-6">
+            <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+                
+                <!-- Columna Izquierda (2/3): Estado de Resultados Estructurado (NIF B-3 + Enfoque Fiscal RESICO) -->
+                <div class="xl:col-span-2 bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden">
+                    <div class="p-5 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                            <h2 class="text-base font-bold text-white flex items-center gap-2">
+                                Estado de Resultados Integral y Fiscal
+                                <span id="er-period-badge" class="text-xs font-normal px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300">Acumulado Anual</span>
+                            </h2>
+                            <p class="text-xs text-slate-400 mt-0.5">Clasificado conforme a la Ley del ISR (RESICO Persona Moral - Flujo de Efectivo) y NIF B-3.</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs text-slate-400">Cifras en MXN (Sin IVA)</span>
+                        </div>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-slate-950/60 text-[11px] uppercase tracking-wider text-slate-400 border-b border-slate-800">
+                                    <th class="py-3 px-5 font-semibold">Rubro / Concepto Contable y Fiscal</th>
+                                    <th class="py-3 px-4 font-semibold text-right">Deducible (CFDI)</th>
+                                    <th class="py-3 px-4 font-semibold text-right">No Deducible (ND)</th>
+                                    <th class="py-3 px-5 font-semibold text-right">Total Contable</th>
+                                    <th class="py-3 px-4 font-semibold text-right">% Ing.</th>
+                                </tr>
+                            </thead>
+                            <tbody id="income-statement-body" class="divide-y divide-slate-800/60 text-sm">
+                                <!-- Generado dinámicamente por JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Columna Derecha (1/3): Desglose de Cálculo de Impuestos (ISR RESICO + IVA) -->
+                <div class="space-y-6">
+                    <!-- Tarjeta Cálculo ISR RESICO -->
+                    <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 space-y-4">
+                        <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                            <div class="flex items-center gap-2.5">
+                                <div class="w-8 h-8 rounded-lg bg-indigo-500/10 text-indigo-400 flex items-center justify-center font-bold text-xs">ISR</div>
+                                <div>
+                                    <h3 class="text-sm font-bold text-white">Cálculo ISR • RESICO PM</h3>
+                                    <p class="text-[11px] text-slate-400">Art. 206-215 LISR (Flujo de Efectivo)</p>
+                                </div>
+                            </div>
+                            <select id="regimen-selector" onchange="recalculateAll()" class="bg-slate-950 border border-slate-700 text-xs rounded-lg px-2 py-1 text-slate-300 focus:outline-none">
+                                <option value="PM_30">Persona Moral (30% s/Utilidad)</option>
+                                <option value="PF_RESICO">Persona Física (1% - 2.5% s/Ingresos)</option>
+                            </select>
+                        </div>
+
+                        <div id="isr-calculation-details" class="space-y-2.5 text-xs">
+                            <!-- Generado dinámicamente -->
+                        </div>
+
+                        <div class="bg-slate-950/70 rounded-xl p-3 border border-slate-800/80 text-[11px] text-slate-400 leading-relaxed">
+                            <strong class="text-slate-300">Nota Fiscal:</strong> En RESICO Persona Moral, los ingresos se acumulan al cobro y las deducciones se restan al pago efectivo, siempre que cuenten con <strong class="text-emerald-400">CFDI válido</strong>. Los gastos marcados como <strong class="text-amber-400">ND</strong> no disminuyen la base gravable de ISR.
+                        </div>
+                    </div>
+
+                    <!-- Tarjeta Cálculo IVA -->
+                    <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 space-y-4">
+                        <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                            <div class="flex items-center gap-2.5">
+                                <div class="w-8 h-8 rounded-lg bg-sky-500/10 text-sky-400 flex items-center justify-center font-bold text-xs">IVA</div>
+                                <div>
+                                    <h3 class="text-sm font-bold text-white">Determinación de IVA (16%)</h3>
+                                    <p class="text-[11px] text-slate-400">Art. 1, 4 y 5 Ley del IVA</p>
+                                </div>
+                            </div>
+                            <span class="text-[11px] px-2 py-0.5 rounded bg-sky-500/10 text-sky-400 font-medium">Tasa General 16%</span>
+                        </div>
+
+                        <div id="iva-calculation-details" class="space-y-2.5 text-xs">
+                            <!-- Generado dinámicamente -->
+                        </div>
+
+                        <div class="bg-slate-950/70 rounded-xl p-3 border border-slate-800/80 text-[11px] text-slate-400 leading-relaxed">
+                            <strong class="text-slate-300">Regla de Acreditamiento:</strong> Solo los gastos <strong>Facturados (Deducibles)</strong> generan IVA acreditable (usando el IVA real de tu Excel cuando existe). El IVA pagado en gastos <strong class="text-amber-400">No Deducibles (ND)</strong> no es acreditable ante el SAT (Art. 5 LIVA).
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- NUEVA VISTA: COMPARATIVO MENSUAL DETALLADO (ENERO A DICIEMBRE POR SEPARADO) -->
+        <section id="view-comparativo-mensual" class="hidden space-y-5">
+            <div class="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden">
+                <div class="p-5 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                        <h2 class="text-base font-bold text-white flex items-center gap-2">
+                            Desglose Financiero y Fiscal Mes por Mes (Enero – Diciembre)
+                        </h2>
+                        <p class="text-xs text-slate-400 mt-0.5">Haz clic en cualquier mes para abrir su Estado de Resultados individual en el tablero principal.</p>
+                    </div>
+                    <span class="text-xs px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-medium">
+                        12 Periodos Mensuales + Total Anual
+                    </span>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-slate-950 text-[11px] uppercase tracking-wider text-slate-400 border-b border-slate-800">
+                                <th class="py-3 px-4 font-semibold">Mes</th>
+                                <th class="py-3 px-4 font-semibold text-right">Ingresos Cobrados</th>
+                                <th class="py-3 px-4 font-semibold text-right">Gastos Facturados (Ded)</th>
+                                <th class="py-3 px-4 font-semibold text-right">Gastos ND</th>
+                                <th class="py-3 px-4 font-semibold text-right">Utilidad Antes Imp.</th>
+                                <th class="py-3 px-4 font-semibold text-right">ISR RESICO</th>
+                                <th class="py-3 px-4 font-semibold text-right">IVA Neto a Pagar</th>
+                                <th class="py-3 px-4 font-semibold text-right">Utilidad Neta</th>
+                                <th class="py-3 px-4 font-semibold text-center">Detalle</th>
+                            </tr>
+                        </thead>
+                        <tbody id="monthly-breakdown-body" class="divide-y divide-slate-800/70 text-xs">
+                            <!-- Generado dinámicamente por JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- VISTA 2: TABLA DETALLADA DE MOVIMIENTOS Y CLASIFICACIÓN FISCAL -->
+        <section id="view-detalle-movimientos" class="hidden space-y-4">
+            <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 space-y-4">
+                <!-- Filtros de Tabla -->
+                <div class="flex flex-wrap items-center justify-between gap-4">
+                    <div>
+                        <h2 class="text-base font-bold text-white">Auxiliar Contable y Clasificación Fiscal SAT</h2>
+                        <p class="text-xs text-slate-400">Cada gasto ha sido enmarcado en su rubro de la LISR. Puedes reclasificar cualquier partida o alternar su estatus Facturado/ND.</p>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <div class="relative">
+                            <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"></i>
+                            <input type="text" id="search-input" onkeyup="renderTransactionsTable()" placeholder="Buscar concepto o rubro..." class="bg-slate-950 border border-slate-700 text-xs rounded-xl pl-9 pr-3 py-2 text-slate-200 focus:outline-none focus:border-emerald-500 w-48 sm:w-64">
+                        </div>
+                        <select id="filter-type" onchange="renderTransactionsTable()" class="bg-slate-950 border border-slate-700 text-xs rounded-xl px-3 py-2 text-slate-200 focus:outline-none">
+                            <option value="ALL">Todos los tipos</option>
+                            <option value="INGRESO">Solo Ingresos</option>
+                            <option value="GASTO">Solo Gastos</option>
+                        </select>
+                        <select id="filter-fiscal" onchange="renderTransactionsTable()" class="bg-slate-950 border border-slate-700 text-xs rounded-xl px-3 py-2 text-slate-200 focus:outline-none">
+                            <option value="ALL">Todo estatus fiscal</option>
+                            <option value="DEDUCIBLE">Facturado (Deducible)</option>
+                            <option value="ND">No Deducible (ND)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Tabla Responsiva -->
+                <div class="overflow-x-auto rounded-xl border border-slate-800">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-slate-950 text-[11px] uppercase tracking-wider text-slate-400 border-b border-slate-800">
+                                <th class="py-3 px-4 font-semibold">Mes</th>
+                                <th class="py-3 px-4 font-semibold">Tipo</th>
+                                <th class="py-3 px-4 font-semibold">Concepto Original (Excel)</th>
+                                <th class="py-3 px-4 font-semibold">Clasificación Fiscal (LISR / NIF)</th>
+                                <th class="py-3 px-4 font-semibold text-center">Estatus Fiscal</th>
+                                <th class="py-3 px-4 font-semibold text-right">Subtotal (Base)</th>
+                                <th class="py-3 px-4 font-semibold text-right">IVA</th>
+                                <th class="py-3 px-4 font-semibold text-right">Total</th>
+                                <th class="py-3 px-4 font-semibold text-center">Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody id="transactions-table-body" class="divide-y divide-slate-800/70 text-xs">
+                            <!-- Generado por JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- VISTA 3: GRÁFICOS INTERACTIVOS -->
+        <section id="view-graficos" class="hidden space-y-6">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Gráfico 1: Evolución Mensual Ingresos vs Gastos Deducibles vs ND -->
+                <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5">
+                    <h3 class="text-sm font-bold text-white mb-1">Flujo Mensual: Ingresos vs Gastos (Deducibles y ND)</h3>
+                    <p class="text-xs text-slate-400 mb-4">Comparativa mensual de operación real y carga de gastos no deducibles.</p>
+                    <div class="h-72 relative">
+                        <canvas id="chart-monthly-flow"></canvas>
+                    </div>
+                </div>
+
+                <!-- Gráfico 2: Distribución de Gastos por Rubro LISR -->
+                <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5">
+                    <h3 class="text-sm font-bold text-white mb-1">Estructura de Gastos por Rubro Fiscal</h3>
+                    <p class="text-xs text-slate-400 mb-4">Proporción de erogaciones por categoría contable y fiscal.</p>
+                    <div class="h-72 relative">
+                        <canvas id="chart-expense-categories"></canvas>
+                    </div>
+                </div>
+
+                <!-- Gráfico 3: Carga Tributaria Mensual (ISR + IVA) -->
+                <div class="lg:col-span-2 bg-slate-900/80 border border-slate-800 rounded-2xl p-5">
+                    <h3 class="text-sm font-bold text-white mb-1">Proyección Mensual de Impuestos (ISR RESICO + IVA por Pagar)</h3>
+                    <p class="text-xs text-slate-400 mb-4">Impacto fiscal mes a mes derivado de la facturación y deducibilidad.</p>
+                    <div class="h-64 relative">
+                        <canvas id="chart-taxes-monthly"></canvas>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- VISTA 4: ASESOR FISCAL Y FINANCIERO CON IA (GEMINI) -->
+        <section id="view-asistente-ia" class="hidden">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Panel de Diagnóstico Automático -->
+                <div class="lg:col-span-2 bg-slate-900/80 border border-slate-800 rounded-2xl p-6 flex flex-col justify-between space-y-5">
+                    <div>
+                        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-4">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center">
+                                    <i data-lucide="bot" class="w-5 h-5"></i>
+                                </div>
+                                <div>
+                                    <h2 class="text-base font-bold text-white">Consultor Fiscal y Financiero IA • Especialista RESICO</h2>
+                                    <p class="text-xs text-slate-400">Analiza tus estados financieros actuales, detecta fugas por gastos ND y sugiere estrategias legales.</p>
+                                </div>
+                            </div>
+                            <button onclick="runFullAIAnalysis()" id="btn-run-ai" class="flex items-center gap-2 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-slate-950 font-bold text-xs px-4 py-2.5 rounded-xl shadow-lg shadow-amber-500/20 transition cursor-pointer">
+                                <i data-lucide="sparkles" class="w-4 h-4"></i>
+                                Generar Diagnóstico Completo
+                            </button>
+                        </div>
+
+                        <!-- Contenedor de Respuesta de IA -->
+                        <div id="ai-analysis-output" class="mt-5 prose prose-invert prose-sm max-w-none bg-slate-950/60 border border-slate-800/80 rounded-xl p-5 min-h-[320px] max-h-[520px] overflow-y-auto text-slate-300 leading-relaxed">
+                            <div class="flex flex-col items-center justify-center h-64 text-center text-slate-400 space-y-3">
+                                <i data-lucide="sparkles" class="w-10 h-10 text-amber-400/60"></i>
+                                <p class="text-sm font-medium text-slate-300">Listo para auditar los números de TROMA</p>
+                                <p class="text-xs max-w-md">Haz clic en <strong>"Generar Diagnóstico Completo"</strong> para que la IA evalúe tu margen operativo, el impacto fiscal de tus gastos No Deducibles (ND) en el ISR e IVA, y te dé recomendaciones accionables.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Chat Interactivo con el Asesor IA -->
+                    <div class="pt-2 border-t border-slate-800">
+                        <label class="block text-xs font-medium text-slate-400 mb-2">Haz una pregunta específica sobre tus números o legislación RESICO:</label>
+                        <div class="flex gap-2">
+                            <input type="text" id="ai-custom-question" onkeypress="if(event.key==='Enter') askCustomAIQuestion()" placeholder="Ej: ¿Cuánto dinero estoy perdiendo en impuestos por los gastos ND? ¿Cómo optimizo mi IVA?" class="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500">
+                            <button onclick="askCustomAIQuestion()" id="btn-ask-ai" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white px-4 py-2.5 rounded-xl text-xs font-medium flex items-center gap-1.5 transition">
+                                <span>Preguntar</span>
+                                <i data-lucide="send" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Panel Lateral: Alertas Rápidas y Prompts Sugeridos -->
+                <div class="space-y-4">
+                    <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 space-y-3">
+                        <h3 class="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                            <i data-lucide="alert-triangle" class="w-4 h-4"></i>
+                            Hallazgos Automáticos Detectados
+                        </h3>
+                        <div id="quick-fiscal-alerts" class="space-y-2.5 text-xs">
+                            <!-- Generado dinámicamente según los datos -->
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 space-y-3">
+                        <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400">Consultas Rápidas Sugeridas</h3>
+                        <div class="flex flex-col gap-2">
+                            <button onclick="triggerSuggestedPrompt('Calcula exactamente cuánto ISR e IVA adicional estoy pagando por culpa de mis gastos No Deducibles (ND) y qué partidas debo exigir factura urgentemente.')" class="text-left text-xs bg-slate-950 hover:bg-slate-800/90 border border-slate-800 p-3 rounded-xl text-slate-300 transition">
+                                💸 Impacto exacto de mis gastos No Deducibles (ND)
+                            </button>
+                            <button onclick="triggerSuggestedPrompt('Analiza la rentabilidad por mes e identifica cuál fue mi mejor y peor mes operativo, explicando las causas en mis costos y gastos.')" class="text-left text-xs bg-slate-950 hover:bg-slate-800/90 border border-slate-800 p-3 rounded-xl text-slate-300 transition">
+                                📈 Análisis de rentabilidad mensual y estacionalidad
+                            </button>
+                            <button onclick="triggerSuggestedPrompt('¿Qué requisitos de deducibilidad del Art. 208 y Art. 27 de la LISR debo cuidar en mis principales rubros de gasto para evitar rechazos del SAT?')" class="text-left text-xs bg-slate-950 hover:bg-slate-800/90 border border-slate-800 p-3 rounded-xl text-slate-300 transition">
+                                🛡️ Blindaje fiscal SAT para mis rubros de gasto
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Modal para Agregar Nuevo Movimiento -->
+    <div id="new-movement-modal" class="fixed inset-0 z-50 hidden bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h3 class="text-base font-bold text-white">Agregar Registro al Archivo Base</h3>
+                <button onclick="closeNewMovementModal()" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <div class="space-y-3 text-xs">
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-slate-400 mb-1">Mes</label>
+                        <select id="new-mes" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white">
+                            <option value="ENERO">ENERO</option>
+                            <option value="FEBRERO">FEBRERO</option>
+                            <option value="MARZO">MARZO</option>
+                            <option value="ABRIL">ABRIL</option>
+                            <option value="MAYO">MAYO</option>
+                            <option value="JUNIO">JUNIO</option>
+                            <option value="JULIO">JULIO</option>
+                            <option value="AGOSTO">AGOSTO</option>
+                            <option value="SEPTIEMBRE">SEPTIEMBRE</option>
+                            <option value="OCTUBRE">OCTUBRE</option>
+                            <option value="NOVIEMBRE">NOVIEMBRE</option>
+                            <option value="DICIEMBRE">DICIEMBRE</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-slate-400 mb-1">Tipo de Operación</label>
+                        <select id="new-tipo" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white">
+                            <option value="INGRESO">INGRESO (Venta)</option>
+                            <option value="GASTO">GASTO / COSTO</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-slate-400 mb-1">Concepto / Descripción</label>
+                    <input type="text" id="new-concepto" placeholder="Ej: Compra de material eléctrico Facturado" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-slate-400 mb-1">Monto (Subtotal sin IVA)</label>
+                        <input type="number" id="new-monto" step="0.01" placeholder="0.00" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono">
+                    </div>
+                    <div>
+                        <label class="block text-slate-400 mb-1">Estatus Fiscal</label>
+                        <select id="new-estatus" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white">
+                            <option value="DEDUCIBLE">Facturado (Deducible)</option>
+                            <option value="ND">No Deducible (ND)</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-slate-400 mb-1">Rubro Fiscal LISR</label>
+                    <select id="new-rubro" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white">
+                        <!-- Llenado por JS -->
+                    </select>
+                </div>
+            </div>
+            <div class="flex justify-end gap-2 pt-3 border-t border-slate-800">
+                <button onclick="closeNewMovementModal()" class="px-4 py-2 rounded-xl text-xs font-medium text-slate-300 hover:bg-slate-800">Cancelar</button>
+                <button onclick="saveNewMovement()" class="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white">Guardar Registro</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ============================================================================
+        // 1. CATÁLOGO FISCAL DE RUBROS CONFORME A LEGISLACIÓN MEXICANA (LISR / NIF)
+        // ============================================================================
+        const RUBROS_FISCALES = {
+            INGRESOS_OPERACION: {
+                id: 'INGRESOS_OPERACION',
+                nombre: 'Ingresos Propios de la Actividad (Cobrado)',
+                grupo: 'INGRESO',
+                articulo: 'Art. 207 LISR',
+                orden: 1
+            },
+            COSTO_VENTAS: {
+                id: 'COSTO_VENTAS',
+                nombre: 'Costo de Ventas, Insumos y Materia Prima',
+                grupo: 'COSTO',
+                articulo: 'Art. 208 Fracc. II LISR',
+                orden: 2
+            },
+            SUELDOS_SALARIOS: {
+                id: 'SUELDOS_SALARIOS',
+                nombre: 'Sueldos, Salarios, Asimilados y Seguridad Social',
+                grupo: 'GASTO_OP',
+                articulo: 'Art. 25 Fracc. III y Art. 27 Fracc. V LISR',
+                orden: 3
+            },
+            ARRENDAMIENTO: {
+                id: 'ARRENDAMIENTO',
+                nombre: 'Arrendamiento de Inmuebles, Bodegas y Equipo',
+                grupo: 'GASTO_OP',
+                articulo: 'Art. 208 Fracc. III y Art. 27 Fracc. XIII LISR',
+                orden: 4
+            },
+            SERVICIOS_PROFESIONALES: {
+                id: 'SERVICIOS_PROFESIONALES',
+                nombre: 'Honorarios, Servicios Profesionales y Subcontratación',
+                grupo: 'GASTO_OP',
+                articulo: 'Art. 208 Fracc. III LISR',
+                orden: 5
+            },
+            COMBUSTIBLES_VIATICOS: {
+                id: 'COMBUSTIBLES_VIATICOS',
+                nombre: 'Combustibles, Lubricantes, Transporte y Viáticos',
+                grupo: 'GASTO_OP',
+                articulo: 'Art. 27 Fracc. III y V LISR (Pago electrónico)',
+                orden: 6
+            },
+            MANTENIMIENTO_EQUIPO: {
+                id: 'MANTENIMIENTO_EQUIPO',
+                nombre: 'Mantenimiento, Conservación y Herramientas',
+                grupo: 'GASTO_OP',
+                articulo: 'Art. 208 Fracc. III LISR',
+                orden: 7
+            },
+            SERVICIOS_BASICOS_ADMIN: {
+                id: 'SERVICIOS_BASICOS_ADMIN',
+                nombre: 'Servicios Básicos (Luz, Teléfono, Internet) y Papelería',
+                grupo: 'GASTO_OP',
+                articulo: 'Art. 208 Fracc. III LISR',
+                orden: 8
+            },
+            GASTOS_FINANCIEROS: {
+                id: 'GASTOS_FINANCIEROS',
+                nombre: 'Comisiones Bancarias e Intereses Pagados',
+                grupo: 'FINANCIERO',
+                articulo: 'Art. 208 Fracc. V LISR',
+                orden: 9
+            },
+            OTROS_GASTOS_ND: {
+                id: 'OTROS_GASTOS_ND',
+                nombre: 'Gastos Generales Diversos / Sin Comprobante Fiscal',
+                grupo: 'GASTO_OP',
+                articulo: 'Art. 28 LISR (Partidas No Deducibles si son ND)',
+                orden: 10
+            }
+        };
+
+        const MESES_ORDEN = [
+            'ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO',
+            'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'
+        ];
+
+        // ============================================================================
+        // 2. DATOS BASE PRECARGADOS (REPRESENTATIVOS DE LINEA INGREOS GASTOS TROMA.xlsx)
+        // ============================================================================
+        const DEFAULT_TROMA_DATA = [
+            // ENERO
+            { mes: 'ENERO', tipo: 'INGRESO', concepto: 'Facturación Servicios y Proyectos Enero (Facturado)', monto: 245000, estatus: 'DEDUCIBLE', rubro: 'INGRESOS_OPERACION', incluyeIva: false },
+            { mes: 'ENERO', tipo: 'GASTO', concepto: 'Compra de materiales e insumos industriales Facturado', monto: 78500, estatus: 'DEDUCIBLE', rubro: 'COSTO_VENTAS', incluyeIva: false },
+            { mes: 'ENERO', tipo: 'GASTO', concepto: 'Nómina operativa y administrativa timbrada Facturado', monto: 48000, estatus: 'DEDUCIBLE', rubro: 'SUELDOS_SALARIOS', incluyeIva: false },
+            { mes: 'ENERO', tipo: 'GASTO', concepto: 'Renta bodega y oficina Facturado', monto: 18000, estatus: 'DEDUCIBLE', rubro: 'ARRENDAMIENTO', incluyeIva: false },
+            { mes: 'ENERO', tipo: 'GASTO', concepto: 'Combustible unidades efectivo ND', monto: 6400, estatus: 'ND', rubro: 'COMBUSTIBLES_VIATICOS', incluyeIva: false },
+            { mes: 'ENERO', tipo: 'GASTO', concepto: 'Honorarios contables y fiscales Facturado', monto: 7500, estatus: 'DEDUCIBLE', rubro: 'SERVICIOS_PROFESIONALES', incluyeIva: false },
+            { mes: 'ENERO', tipo: 'GASTO', concepto: 'Comidas y consumos varios sin factura ND', monto: 4200, estatus: 'ND', rubro: 'OTROS_GASTOS_ND', incluyeIva: false },
+
+            // FEBRERO
+            { mes: 'FEBRERO', tipo: 'INGRESO', concepto: 'Ingresos Proyectos Industriales Febrero (Facturado)', monto: 268000, estatus: 'DEDUCIBLE', rubro: 'INGRESOS_OPERACION', incluyeIva: false },
+            { mes: 'FEBRERO', tipo: 'GASTO', concepto: 'Suministros y refacciones proveedores Facturado', monto: 84200, estatus: 'DEDUCIBLE', rubro: 'COSTO_VENTAS', incluyeIva: false },
+            { mes: 'FEBRERO', tipo: 'GASTO', concepto: 'Sueldos y cargas sociales IMSS Facturado', monto: 49500, estatus: 'DEDUCIBLE', rubro: 'SUELDOS_SALARIOS', incluyeIva: false },
+            { mes: 'FEBRERO', tipo: 'GASTO', concepto: 'Renta bodega y oficina Facturado', monto: 18000, estatus: 'DEDUCIBLE', rubro: 'ARRENDAMIENTO', incluyeIva: false },
+            { mes: 'FEBRERO', tipo: 'GASTO', concepto: 'Gasolina con monedero electrónico Facturado', monto: 8900, estatus: 'DEDUCIBLE', rubro: 'COMBUSTIBLES_VIATICOS', incluyeIva: false },
+            { mes: 'FEBRERO', tipo: 'GASTO', concepto: 'Mantenimiento preventivo maquinaria Facturado', monto: 12400, estatus: 'DEDUCIBLE', rubro: 'MANTENIMIENTO_EQUIPO', incluyeIva: false },
+            { mes: 'FEBRERO', tipo: 'GASTO', concepto: 'Maniobras y fletes locales nota simple ND', monto: 5800, estatus: 'ND', rubro: 'COSTO_VENTAS', incluyeIva: false },
+
+            // MARZO
+            { mes: 'MARZO', tipo: 'INGRESO', concepto: 'Facturación Clientes Corporativos Marzo (Facturado)', monto: 312000, estatus: 'DEDUCIBLE', rubro: 'INGRESOS_OPERACION', incluyeIva: false },
+            { mes: 'MARZO', tipo: 'GASTO', concepto: 'Compra materia prima y acero Facturado', monto: 96000, estatus: 'DEDUCIBLE', rubro: 'COSTO_VENTAS', incluyeIva: false },
+            { mes: 'MARZO', tipo: 'GASTO', concepto: 'Nómina quincenal timbrada Facturado', monto: 51000, estatus: 'DEDUCIBLE', rubro: 'SUELDOS_SALARIOS', incluyeIva: false },
+            { mes: 'MARZO', tipo: 'GASTO', concepto: 'Renta bodega y oficina Facturado', monto: 18000, estatus: 'DEDUCIBLE', rubro: 'ARRENDAMIENTO', incluyeIva: false },
+            { mes: 'MARZO', tipo: 'GASTO', concepto: 'Luz CFE, Internet y Telefonía Facturado', monto: 6200, estatus: 'DEDUCIBLE', rubro: 'SERVICIOS_BASICOS_ADMIN', incluyeIva: false },
+            { mes: 'MARZO', tipo: 'GASTO', concepto: 'Comisiones bancarias y manejo de cuenta Facturado', monto: 1850, estatus: 'DEDUCIBLE', rubro: 'GASTOS_FINANCIEROS', incluyeIva: false },
+            { mes: 'MARZO', tipo: 'GASTO', concepto: 'Gastos menores caja chica ND', monto: 7900, estatus: 'ND', rubro: 'OTROS_GASTOS_ND', incluyeIva: false },
+
+            // ABRIL
+            { mes: 'ABRIL', tipo: 'INGRESO', concepto: 'Ingresos por Servicios Especializados Abril (Facturado)', monto: 289000, estatus: 'DEDUCIBLE', rubro: 'INGRESOS_OPERACION', incluyeIva: false },
+            { mes: 'ABRIL', tipo: 'GASTO', concepto: 'Materiales eléctricos y consumibles Facturado', monto: 88400, estatus: 'DEDUCIBLE', rubro: 'COSTO_VENTAS', incluyeIva: false },
+            { mes: 'ABRIL', tipo: 'GASTO', concepto: 'Sueldos y salarios timbrados Facturado', monto: 51000, estatus: 'DEDUCIBLE', rubro: 'SUELDOS_SALARIOS', incluyeIva: false },
+            { mes: 'ABRIL', tipo: 'GASTO', concepto: 'Renta bodega y oficina Facturado', monto: 18000, estatus: 'DEDUCIBLE', rubro: 'ARRENDAMIENTO', incluyeIva: false },
+            { mes: 'ABRIL', tipo: 'GASTO', concepto: 'Subcontratación técnica especializada Facturado', monto: 22000, estatus: 'DEDUCIBLE', rubro: 'SERVICIOS_PROFESIONALES', incluyeIva: false },
+            { mes: 'ABRIL', tipo: 'GASTO', concepto: 'Viáticos y casetas sin comprobante fiscal ND', monto: 6500, estatus: 'ND', rubro: 'COMBUSTIBLES_VIATICOS', incluyeIva: false },
+
+            // MAYO
+            { mes: 'MAYO', tipo: 'INGRESO', concepto: 'Facturación Proyectos Mayo (Facturado)', monto: 335000, estatus: 'DEDUCIBLE', rubro: 'INGRESOS_OPERACION', incluyeIva: false },
+            { mes: 'MAYO', tipo: 'GASTO', concepto: 'Insumos directos de producción Facturado', monto: 105000, estatus: 'DEDUCIBLE', rubro: 'COSTO_VENTAS', incluyeIva: false },
+            { mes: 'MAYO', tipo: 'GASTO', concepto: 'Nómina y prestaciones de ley Facturado', monto: 54000, estatus: 'DEDUCIBLE', rubro: 'SUELDOS_SALARIOS', incluyeIva: false },
+            { mes: 'MAYO', tipo: 'GASTO', concepto: 'Renta bodega y oficina Facturado', monto: 18000, estatus: 'DEDUCIBLE', rubro: 'ARRENDAMIENTO', incluyeIva: false },
+            { mes: 'MAYO', tipo: 'GASTO', concepto: 'Combustibles y lubricantes Facturado', monto: 9800, estatus: 'DEDUCIBLE', rubro: 'COMBUSTIBLES_VIATICOS', incluyeIva: false },
+            { mes: 'MAYO', tipo: 'GASTO', concepto: 'Herramienta menor ferretería sin factura ND', monto: 8400, estatus: 'ND', rubro: 'MANTENIMIENTO_EQUIPO', incluyeIva: false },
+
+            // JUNIO
+            { mes: 'JUNIO', tipo: 'INGRESO', concepto: 'Facturación Cierre Semestral Junio (Facturado)', monto: 358000, estatus: 'DEDUCIBLE', rubro: 'INGRESOS_OPERACION', incluyeIva: false },
+            { mes: 'JUNIO', tipo: 'GASTO', concepto: 'Compra de materiales y componentes Facturado', monto: 112000, estatus: 'DEDUCIBLE', rubro: 'COSTO_VENTAS', incluyeIva: false },
+            { mes: 'JUNIO', tipo: 'GASTO', concepto: 'Nómina operativa timbrada Facturado', monto: 54000, estatus: 'DEDUCIBLE', rubro: 'SUELDOS_SALARIOS', incluyeIva: false },
+            { mes: 'JUNIO', tipo: 'GASTO', concepto: 'Renta bodega y oficina Facturado', monto: 18000, estatus: 'DEDUCIBLE', rubro: 'ARRENDAMIENTO', incluyeIva: false },
+            { mes: 'JUNIO', tipo: 'GASTO', concepto: 'Servicios contables, legales y auditoría Facturado', monto: 9500, estatus: 'DEDUCIBLE', rubro: 'SERVICIOS_PROFESIONALES', incluyeIva: false },
+            { mes: 'JUNIO', tipo: 'GASTO', concepto: 'Atención a clientes y consumos ND', monto: 9200, estatus: 'ND', rubro: 'OTROS_GASTOS_ND', incluyeIva: false },
+
+            // JULIO
+            { mes: 'JULIO', tipo: 'INGRESO', concepto: 'Ingresos Proyectos Industriales Julio (Facturado)', monto: 324000, estatus: 'DEDUCIBLE', rubro: 'INGRESOS_OPERACION', incluyeIva: false },
+            { mes: 'JULIO', tipo: 'GASTO', concepto: 'Insumos y suministros industriales Facturado', monto: 98500, estatus: 'DEDUCIBLE', rubro: 'COSTO_VENTAS', incluyeIva: false },
+            { mes: 'JULIO', tipo: 'GASTO', concepto: 'Nómina quincenal y seguridad social Facturado', monto: 54000, estatus: 'DEDUCIBLE', rubro: 'SUELDOS_SALARIOS', incluyeIva: false },
+            { mes: 'JULIO', tipo: 'GASTO', concepto: 'Renta bodega y oficina Facturado', monto: 18000, estatus: 'DEDUCIBLE', rubro: 'ARRENDAMIENTO', incluyeIva: false },
+            { mes: 'JULIO', tipo: 'GASTO', concepto: 'Gasolina y viáticos de supervisión Facturado', monto: 10200, estatus: 'DEDUCIBLE', rubro: 'COMBUSTIBLES_VIATICOS', incluyeIva: false },
+            { mes: 'JULIO', tipo: 'GASTO', concepto: 'Gastos menores de obra sin factura ND', monto: 6800, estatus: 'ND', rubro: 'OTROS_GASTOS_ND', incluyeIva: false },
+
+            // AGOSTO
+            { mes: 'AGOSTO', tipo: 'INGRESO', concepto: 'Facturación Servicios y Mantenimiento Agosto (Facturado)', monto: 342000, estatus: 'DEDUCIBLE', rubro: 'INGRESOS_OPERACION', incluyeIva: false },
+            { mes: 'AGOSTO', tipo: 'GASTO', concepto: 'Compra de refacciones y materiales Facturado', monto: 104000, estatus: 'DEDUCIBLE', rubro: 'COSTO_VENTAS', incluyeIva: false },
+            { mes: 'AGOSTO', tipo: 'GASTO', concepto: 'Sueldos y salarios timbrados Facturado', monto: 55500, estatus: 'DEDUCIBLE', rubro: 'SUELDOS_SALARIOS', incluyeIva: false },
+            { mes: 'AGOSTO', tipo: 'GASTO', concepto: 'Renta bodega y oficina Facturado', monto: 18000, estatus: 'DEDUCIBLE', rubro: 'ARRENDAMIENTO', incluyeIva: false },
+            { mes: 'AGOSTO', tipo: 'GASTO', concepto: 'Mantenimiento preventivo unidades y equipo Facturado', monto: 14500, estatus: 'DEDUCIBLE', rubro: 'MANTENIMIENTO_EQUIPO', incluyeIva: false },
+            { mes: 'AGOSTO', tipo: 'GASTO', concepto: 'Fletes locales y maniobras ND', monto: 5400, estatus: 'ND', rubro: 'COSTO_VENTAS', incluyeIva: false },
+
+            // SEPTIEMBRE
+            { mes: 'SEPTIEMBRE', tipo: 'INGRESO', concepto: 'Facturación Clientes Corporativos Septiembre (Facturado)', monto: 365000, estatus: 'DEDUCIBLE', rubro: 'INGRESOS_OPERACION', incluyeIva: false },
+            { mes: 'SEPTIEMBRE', tipo: 'GASTO', concepto: 'Materia prima y componentes eléctricos Facturado', monto: 115000, estatus: 'DEDUCIBLE', rubro: 'COSTO_VENTAS', incluyeIva: false },
+            { mes: 'SEPTIEMBRE', tipo: 'GASTO', concepto: 'Nómina y prestaciones timbradas Facturado', monto: 55500, estatus: 'DEDUCIBLE', rubro: 'SUELDOS_SALARIOS', incluyeIva: false },
+            { mes: 'SEPTIEMBRE', tipo: 'GASTO', concepto: 'Renta bodega y oficina Facturado', monto: 18000, estatus: 'DEDUCIBLE', rubro: 'ARRENDAMIENTO', incluyeIva: false },
+            { mes: 'SEPTIEMBRE', tipo: 'GASTO', concepto: 'Luz CFE, Internet y Telefonía empresarial Facturado', monto: 6800, estatus: 'DEDUCIBLE', rubro: 'SERVICIOS_BASICOS_ADMIN', incluyeIva: false },
+            { mes: 'SEPTIEMBRE', tipo: 'GASTO', concepto: 'Comisiones bancarias Facturado', monto: 2100, estatus: 'DEDUCIBLE', rubro: 'GASTOS_FINANCIEROS', incluyeIva: false },
+            { mes: 'SEPTIEMBRE', tipo: 'GASTO', concepto: 'Consumos y caja chica sin CFDI ND', monto: 7500, estatus: 'ND', rubro: 'OTROS_GASTOS_ND', incluyeIva: false },
+
+            // OCTUBRE
+            { mes: 'OCTUBRE', tipo: 'INGRESO', concepto: 'Ingresos Proyectos Industriales Octubre (Facturado)', monto: 388000, estatus: 'DEDUCIBLE', rubro: 'INGRESOS_OPERACION', incluyeIva: false },
+            { mes: 'OCTUBRE', tipo: 'GASTO', concepto: 'Suministros directos de proyecto Facturado', monto: 121000, estatus: 'DEDUCIBLE', rubro: 'COSTO_VENTAS', incluyeIva: false },
+            { mes: 'OCTUBRE', tipo: 'GASTO', concepto: 'Nómina operativa y administrativa Facturado', monto: 57000, estatus: 'DEDUCIBLE', rubro: 'SUELDOS_SALARIOS', incluyeIva: false },
+            { mes: 'OCTUBRE', tipo: 'GASTO', concepto: 'Renta bodega y oficina Facturado', monto: 18000, estatus: 'DEDUCIBLE', rubro: 'ARRENDAMIENTO', incluyeIva: false },
+            { mes: 'OCTUBRE', tipo: 'GASTO', concepto: 'Honorarios contables y consultoría técnica Facturado', monto: 16500, estatus: 'DEDUCIBLE', rubro: 'SERVICIOS_PROFESIONALES', incluyeIva: false },
+            { mes: 'OCTUBRE', tipo: 'GASTO', concepto: 'Combustible y casetas sin factura ND', monto: 6100, estatus: 'ND', rubro: 'COMBUSTIBLES_VIATICOS', incluyeIva: false },
+
+            // NOVIEMBRE
+            { mes: 'NOVIEMBRE', tipo: 'INGRESO', concepto: 'Facturación Proyectos Noviembre (Facturado)', monto: 410000, estatus: 'DEDUCIBLE', rubro: 'INGRESOS_OPERACION', incluyeIva: false },
+            { mes: 'NOVIEMBRE', tipo: 'GASTO', concepto: 'Compra de materiales y acero Facturado', monto: 128000, estatus: 'DEDUCIBLE', rubro: 'COSTO_VENTAS', incluyeIva: false },
+            { mes: 'NOVIEMBRE', tipo: 'GASTO', concepto: 'Sueldos, salarios y cargas sociales Facturado', monto: 57000, estatus: 'DEDUCIBLE', rubro: 'SUELDOS_SALARIOS', incluyeIva: false },
+            { mes: 'NOVIEMBRE', tipo: 'GASTO', concepto: 'Renta bodega y oficina Facturado', monto: 18000, estatus: 'DEDUCIBLE', rubro: 'ARRENDAMIENTO', incluyeIva: false },
+            { mes: 'NOVIEMBRE', tipo: 'GASTO', concepto: 'Combustibles con monedero electrónico Facturado', monto: 11200, estatus: 'DEDUCIBLE', rubro: 'COMBUSTIBLES_VIATICOS', incluyeIva: false },
+            { mes: 'NOVIEMBRE', tipo: 'GASTO', concepto: 'Herramienta menor y consumibles sin factura ND', monto: 8900, estatus: 'ND', rubro: 'MANTENIMIENTO_EQUIPO', incluyeIva: false },
+
+            // DICIEMBRE
+            { mes: 'DICIEMBRE', tipo: 'INGRESO', concepto: 'Facturación Cierre Anual Diciembre (Facturado)', monto: 445000, estatus: 'DEDUCIBLE', rubro: 'INGRESOS_OPERACION', incluyeIva: false },
+            { mes: 'DICIEMBRE', tipo: 'GASTO', concepto: 'Insumos y materiales cierre de proyectos Facturado', monto: 136000, estatus: 'DEDUCIBLE', rubro: 'COSTO_VENTAS', incluyeIva: false },
+            { mes: 'DICIEMBRE', tipo: 'GASTO', concepto: 'Nómina Diciembre y Aguinaldos timbrados Facturado', monto: 84000, estatus: 'DEDUCIBLE', rubro: 'SUELDOS_SALARIOS', incluyeIva: false },
+            { mes: 'DICIEMBRE', tipo: 'GASTO', concepto: 'Renta bodega y oficina Facturado', monto: 18000, estatus: 'DEDUCIBLE', rubro: 'ARRENDAMIENTO', incluyeIva: false },
+            { mes: 'DICIEMBRE', tipo: 'GASTO', concepto: 'Servicios contables, cierre fiscal y auditoría Facturado', monto: 14000, estatus: 'DEDUCIBLE', rubro: 'SERVICIOS_PROFESIONALES', incluyeIva: false },
+            { mes: 'DICIEMBRE', tipo: 'GASTO', concepto: 'Atención a clientes fin de año y diversos ND', monto: 11500, estatus: 'ND', rubro: 'OTROS_GASTOS_ND', incluyeIva: false }
+        ];
+
+        // Estado Global de la Aplicación
+        let appState = {
+            transactions: [],
+            selectedMonth: 'ALL',
+            fileName: 'LINEA INGREOS GASTOS TROMA.xlsx (Base Precargada)',
+            charts: {}
+        };
+
+        // ============================================================================
+        // 3. MOTOR DE CLASIFICACIÓN AUTOMÁTICA INTELIGENTE (PARSEO DE EXCEL)
+        // ============================================================================
+        function classifyTransaction(conceptoRaw, tipoRaw, estatusRaw, sectionContext = '') {
+            const text = `${conceptoRaw || ''} ${estatusRaw || ''} ${sectionContext || ''}`.toUpperCase();
+            const cRawUpper = String(conceptoRaw || '').toUpperCase().trim();
+            const tRawUpper = String(tipoRaw || '').toUpperCase().trim();
+            const eRawUpper = String(estatusRaw || '').toUpperCase().trim();
+            
+            // 1. Determinar Tipo (INGRESO vs GASTO)
+            let tipo = 'GASTO';
+            if (tRawUpper.includes('INGRES') || sectionContext.toUpperCase().includes('INGRES')) {
+                tipo = 'INGRESO';
+            } else if (tRawUpper.includes('GAST') || tRawUpper.includes('EGRES') || tRawUpper.includes('COST')) {
+                tipo = 'GASTO';
+            } else if (/^(INGRESO|VENTA|COBRO|FACTURA|ANTICIPO CLIENTE|SERVICIO PRESTADO|PROYECTO)/.test(cRawUpper) || text.includes('INGRESOS')) {
+                tipo = 'INGRESO';
+            }
+
+            // 2. Determinar Estatus Fiscal (DEDUCIBLE vs ND) usando prioridad directa en columna SAT
+            let estatus = 'DEDUCIBLE';
+            if (eRawUpper === 'ND' || /\bN\.?D\.?\b/.test(eRawUpper) || eRawUpper.includes('NO DEDUCIBLE') || eRawUpper.includes('SIN FACTURA')) {
+                estatus = 'ND';
+            } else if (eRawUpper.includes('FACTURAD') || eRawUpper.includes('CFDI') || eRawUpper.includes('DEDUCIBLE')) {
+                estatus = 'DEDUCIBLE';
+            } else if (/\bN\.?D\.?\b/.test(text) || text.includes('NO DEDUCIBLE') || text.includes('SIN FACTURA') || text.includes('NOTA SIMPLE') || text.includes('EFECTIVO SIN') || text.includes('NO DED')) {
+                estatus = 'ND';
+            } else if (tipo === 'GASTO') {
+                estatus = /CAJA CHICA|PROPINA|SIN COMPROBANTE|VALE/.test(text) ? 'ND' : 'DEDUCIBLE';
+            }
+
+            // 3. Clasificar en Rubro de la LISR / NIF
+            if (tipo === 'INGRESO') {
+                return { tipo, estatus: 'DEDUCIBLE', rubro: 'INGRESOS_OPERACION' };
+            }
+
+            let rubro = 'OTROS_GASTOS_ND';
+            if (/SOLISTICA|TRAXION|TRANSPORTE|MATERIA|INSUMO|MATERIAL|REFACCION|MERCANCIA|COSTO|COMPRA|PROVEEDOR|FLETE|ACERO|SUMINISTRO|MANIOBRA|INSTALACION|FABRICACION|TORNILLERIA|PINTURA|SOLDA/.test(text)) {
+                rubro = 'COSTO_VENTAS';
+            } else if (/NOMINA|SUELDO|SALARIO|IMSS|INFONAVIT|ASIMILADO|AGUINALDO|PRESTACION|FINIQUITO|RAYA|SEMANAL|QUINCENAL|BASE OPERATIVA/.test(text)) {
+                rubro = 'SUELDOS_SALARIOS';
+            } else if (/RENTA DE UNIDADES|RENTA|ARRENDAMIENTO|BODEGA|OFICINA|LOCAL|TALLER|NAVE/.test(text)) {
+                rubro = 'ARRENDAMIENTO';
+            } else if (/HONORARIO|CONTADOR|CONTABILIDAD|SERGIO VAZQUEZ|CONTABLE|LEGAL|ABOGADO|CONSULTOR|SUBCONTRAT|SERVICIO PROFESIONAL|AUDITORIA|NOTARIO|GESTORIA/.test(text)) {
+                rubro = 'SERVICIOS_PROFESIONALES';
+            } else if (/GASOLINA|COMBUSTIBLE|DIESEL|PEAJE|CASETA|VIATICO|HOSPEDAJE|HOTEL|PASAJE|UBER|ESTACIONAMIENTO|TAG|AUTOPISTA|ALIMENTO|COMIDA/.test(text)) {
+                rubro = 'COMBUSTIBLES_VIATICOS';
+            } else if (/MANTENIMIENTO|THERMO|MECANICO|REPARACION|HERRAMIENTA|MAQUINARIA|EQUIPO|FERRETERIA|REFACCIONARIA|LLANTA|AFINACION|TALLER MECANICO|QUALITAS|SEGURIDAD/.test(text)) {
+                rubro = 'MANTENIMIENTO_EQUIPO';
+            } else if (/LUZ|CFE|AGUA|INTERNET|TELEFON|RECARGA|PAPELERIA|SOFTWARE|LICENCIA|SISTEMA|CELULAR|TELMEX|IZZI|TOTALPLAY|GASTOS ADMINISTRATIVOS/.test(text)) {
+                rubro = 'SERVICIOS_BASICOS_ADMIN';
+            } else if (/COMISIONES OPERATIVAS|RETIRO DE EFECTIVO|USO DE ATM|BANCO|COMISION|INTERES|FINANCIER|TARJETA|SPEI|TRANSFERENCIA|ANUALIDAD|IVA|ISR|IMPUESTO/.test(text)) {
+                rubro = 'GASTOS_FINANCIEROS';
+            }
+
+            return { tipo, estatus, rubro };
+        }
+
+        // Helper unificado para calcular exactamente el IVA de cada movimiento
+        function getTransactionIva(t) {
+            const monto = Number(t.monto) || 0;
+            const hasExplicitIva = t.ivaExcel !== undefined && t.ivaExcel !== null && t.ivaExcel !== '';
+
+            if (t.tipo === 'INGRESO') {
+                return hasExplicitIva ? Number(t.ivaExcel) : +(monto * 0.16).toFixed(2);
+            } else if (t.tipo === 'GASTO') {
+                // Los sueldos y salarios no causan IVA, y los gastos No Deducibles (ND) no tienen IVA acreditable
+                if (t.estatus === 'DEDUCIBLE' && t.rubro !== 'SUELDOS_SALARIOS') {
+                    return hasExplicitIva ? Number(t.ivaExcel) : +(monto * 0.16).toFixed(2);
+                }
+            }
+            return 0;
+        }
+
+        // ============================================================================
+        // 4. LECTURA Y EXPORTACIÓN DE ARCHIVOS EXCEL (BASE REUTILIZABLE)
+        // ============================================================================
+        function detectMonthFromText(text) {
+            if (!text) return null;
+            const clean = String(text)
+                .toUpperCase()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .trim();
+
+            const monthPatterns = [
+                { month: 'ENERO', regex: /\b(ENERO|ENE)\b/ },
+                { month: 'FEBRERO', regex: /\b(FEBRERO|FEB)\b/ },
+                { month: 'MARZO', regex: /\b(MARZO|MAR)\b/ },
+                { month: 'ABRIL', regex: /\b(ABRIL|ABR)\b/ },
+                { month: 'MAYO', regex: /\b(MAYO|MAY)\b/ },
+                { month: 'JUNIO', regex: /\b(JUNIO|JUN)\b/ },
+                { month: 'JULIO', regex: /\b(JULIO|JUL)\b/ },
+                { month: 'AGOSTO', regex: /\b(AGOSTO|AGO)\b/ },
+                { month: 'SEPTIEMBRE', regex: /\b(SEPTIEMBRE|SETIEMBRE|SEPT|SEP)\b/ },
+                { month: 'OCTUBRE', regex: /\b(OCTUBRE|OCT)\b/ },
+                { month: 'NOVIEMBRE', regex: /\b(NOVIEMBRE|NOV)\b/ },
+                { month: 'DICIEMBRE', regex: /\b(DICIEMBRE|DIC)\b/ }
+            ];
+
+            for (const item of monthPatterns) {
+                if (item.regex.test(clean)) return item.month;
+            }
+            return null;
+        }
+
+        function parseExcelNumber(val) {
+            if (typeof val === 'number') return isNaN(val) ? 0 : val;
+            if (!val) return 0;
+            const cleaned = String(val).replace(/[$,\sMXN]/gi, '').trim();
+            if (!cleaned || cleaned === '-') return 0;
+            const num = parseFloat(cleaned);
+            return isNaN(num) ? 0 : num;
+        }
+
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const parsedTransactions = [];
+
+                    workbook.SheetNames.forEach(sheetName => {
+                        const worksheet = workbook.Sheets[sheetName];
+                        const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+                        if (!rows || rows.length === 0) return;
+
+                        const sheetUpper = sheetName.toUpperCase().trim();
+                        const matchedMonthFromSheet = detectMonthFromText(sheetUpper);
+
+                        // Solo omitir pestaña resumen si existen al menos 3 pestañas mensuales individuales
+                        const monthSheetsCount = workbook.SheetNames.filter(s => detectMonthFromText(s) !== null).length;
+                        if (monthSheetsCount >= 3 && (sheetUpper.includes('RESUMEN') || sheetUpper.includes('INDICE'))) {
+                            return;
+                        }
+
+                        // Buscar dinámicamente todas las filas que actúan como encabezados de tabla dentro de la hoja
+                        let headerRowIndex = -1;
+                        for (let i = 0; i < Math.min(25, rows.length); i++) {
+                            const rowCells = rows[i].map(c => String(c).toUpperCase().trim());
+                            const rowStr = rowCells.join(' ');
+                            if (
+                                (rowCells.includes('MES') || rowStr.includes('CONCEPTO') || rowStr.includes('PLAN DE CUENTAS') || rowStr.includes('DESCRIPCION') || rowStr.includes('CLIENTE O PROVEEDOR')) &&
+                                (rowStr.includes('BASE') || rowStr.includes('SUBTOTAL') || rowStr.includes('IMPORTE') || rowStr.includes('TOTAL') || rowStr.includes('MONTO'))
+                            ) {
+                                headerRowIndex = i;
+                                break;
+                            }
+                        }
+
+                        if (headerRowIndex === -1) {
+                            for (let i = 0; i < Math.min(25, rows.length); i++) {
+                                if (rows[i].some(c => ['BASE', 'SUBTOTAL', 'IMPORTE', 'MONTO', 'TOTAL'].includes(String(c).toUpperCase().trim()))) {
+                                    headerRowIndex = i;
+                                    break;
+                                }
+                            }
+                        }
+
+                        let headers = headerRowIndex !== -1 ? rows[headerRowIndex].map(h => String(h).toUpperCase().trim()) : [];
+                        const startRow = headerRowIndex !== -1 ? headerRowIndex + 1 : 0;
+
+                        const resolveColumnIndexes = (hdrs) => {
+                            let baseIdx = hdrs.findIndex(h => h === 'BASE' || h.includes('BASE') || h === 'SUBTOTAL' || h.includes('SUBTOTAL'));
+                            if (baseIdx === -1) {
+                                baseIdx = hdrs.findIndex(h => h === 'IMPORTE' || h === 'MONTO' || h.includes('NETO'));
+                            }
+                            if (baseIdx === -1 && hdrs.length > 8) {
+                                baseIdx = 8; // Columna I por defecto
+                            }
+
+                            return {
+                                baseColIndex: baseIdx,
+                                refColIndex: hdrs.findIndex(h => h.includes('REFERENCIA') || h === '#'),
+                                planCuentasColIndex: hdrs.findIndex(h => h === 'CONCEPTO' || h === 'PLAN DE CUENTAS' || h.includes('PLAN DE CUENTAS')),
+                                proveedorColIndex: hdrs.findIndex(h => h === 'DESCRIPCION' || h === 'DESCRIPCIÓN' || h === 'CLIENTE O PROVEEDOR' || h.includes('PROVEEDOR') || h.includes('CLIENTE')),
+                                detalleColIndex: hdrs.findIndex(h => h === 'DETALLE' || h.includes('OBSERVACION')),
+                                tipoColIndex: hdrs.findIndex(h => h === 'TIPO' || h === 'CLASIFICACIÓN' || h === 'CLASIFICACION' || h.includes('NATURALEZA') || h.includes('CATEGORIA')),
+                                estatusColIndex: hdrs.findIndex(h => h === 'SAT' || h.includes('ESTATUS') || h.includes('FISCAL') || h.includes('FACTURA') || h.includes('DEDUCIBLE') || h.includes('CFDI')),
+                                mesColIndex: hdrs.findIndex(h => h === 'MES' || h.includes('PERIODO')),
+                                fechaColIndex: hdrs.findIndex(h => h.includes('FECHA')),
+                                ivaColIndex: hdrs.findIndex(h => h === 'IVA' || h === 'IVA_16' || h.includes('I.V.A')),
+                                retIvaColIndex: hdrs.findIndex(h => h === 'RET IVA' || h.includes('RET IVA')),
+                                retIsrColIndex: hdrs.findIndex(h => h === 'RET ISR' || h.includes('RET ISR')),
+                                ishColIndex: hdrs.findIndex(h => h === 'ISH'),
+                                totalColIndex: hdrs.findIndex(h => h === 'MONTO' || h === 'TOTAL' || h.includes('IMPORTE TOTAL')),
+                                cargoColIndex: hdrs.findIndex(h => h.includes('CARGO') || h.includes('EGRESO') || h.includes('GASTO') || h.includes('SALIDA')),
+                                abonoColIndex: hdrs.findIndex(h => h.includes('ABONO') || h.includes('INGRESO') || h.includes('ENTRADA'))
+                            };
+                        };
+
+                        let cols = resolveColumnIndexes(headers);
+
+                        // Verificar si hay meses en columnas horizontales (Enero..Diciembre)
+                        const monthColumnMap = {};
+                        headers.forEach((h, colIdx) => {
+                            if (colIdx === cols.baseColIndex) return;
+                            const mDetected = detectMonthFromText(h);
+                            if (mDetected) monthColumnMap[colIdx] = mDetected;
+                        });
+                        const hasHorizontalMonths = Object.keys(monthColumnMap).length >= 2;
+
+                        let currentSectionContext = '';
+                        let lastKnownMonth = matchedMonthFromSheet || '';
+
+                        for (let r = startRow; r < rows.length; r++) {
+                            const row = rows[r];
+                            if (!row || row.every(cell => cell === '' || cell === null || cell === undefined)) continue;
+
+                            const rowUpperCells = row.map(c => String(c).toUpperCase().trim());
+                            const fullRowText = rowUpperCells.join(' ');
+
+                            // Si aparece una nueva fila de encabezados dentro de la misma hoja
+                            if (
+                                (rowUpperCells.includes('CONCEPTO') || rowUpperCells.includes('PLAN DE CUENTAS') || rowUpperCells.includes('DESCRIPCION')) &&
+                                (rowUpperCells.includes('BASE') || rowUpperCells.includes('SUBTOTAL') || rowUpperCells.includes('IMPORTE') || rowUpperCells.includes('MONTO'))
+                            ) {
+                                headers = rowUpperCells;
+                                cols = resolveColumnIndexes(headers);
+                                continue;
+                            }
+
+                            // Detectar si la fila es un encabezado de sección o cambio de mes (sin montos numéricos relevantes)
+                            const numericValuesInRow = row.map((c, idx) => {
+                                if (idx === cols.fechaColIndex || idx === cols.mesColIndex || idx === cols.refColIndex) return 0;
+                                const n = parseExcelNumber(c);
+                                if (idx !== cols.baseColIndex && idx !== cols.totalColIndex && idx !== cols.cargoColIndex && idx !== cols.abonoColIndex && n > 0 && n <= 31 && Number.isInteger(n)) {
+                                    return 0;
+                                }
+                                return n;
+                            });
+                            const hasAnyAmount = numericValuesInRow.some(v => v !== 0);
+
+                            if (!hasAnyAmount) {
+                                const detectedHeaderMonth = detectMonthFromText(fullRowText);
+                                if (detectedHeaderMonth && !matchedMonthFromSheet) {
+                                    lastKnownMonth = detectedHeaderMonth;
+                                }
+                                if (fullRowText.includes('INGRESO')) currentSectionContext = 'INGRESO';
+                                else if (fullRowText.includes('NO DEDUCIBLE') || /\bN\.?D\.?\b/.test(fullRowText)) currentSectionContext = 'GASTO ND';
+                                else if (fullRowText.includes('FACTURAD') || fullRowText.includes('DEDUCIBLE')) currentSectionContext = 'GASTO FACTURADO';
+                                else if (fullRowText.includes('GASTO') || fullRowText.includes('EGRESO') || fullRowText.includes('COSTO')) currentSectionContext = 'GASTO';
+                                continue;
+                            }
+
+                            // Construir descripción completa combinando Plan de Cuentas + Cliente/Proveedor + Detalle
+                            const planVal = cols.planCuentasColIndex !== -1 ? String(row[cols.planCuentasColIndex] || '').trim() : '';
+                            const provVal = cols.proveedorColIndex !== -1 ? String(row[cols.proveedorColIndex] || '').trim() : '';
+                            const detVal = cols.detalleColIndex !== -1 ? String(row[cols.detalleColIndex] || '').trim() : '';
+
+                            let conceptoParts = [];
+                            if (planVal) conceptoParts.push(planVal);
+                            if (provVal && provVal.toUpperCase() !== planVal.toUpperCase()) conceptoParts.push(provVal);
+                            if (detVal && detVal.toUpperCase() !== provVal.toUpperCase() && detVal.toUpperCase() !== planVal.toUpperCase()) {
+                                conceptoParts.push(`(${detVal})`);
+                            }
+                            let conceptoVal = conceptoParts.join(' • ');
+
+                            if (!conceptoVal || !isNaN(Number(conceptoVal.replace(/[$,]/g, '')))) {
+                                const textCandidates = row.filter((c, idx) =>
+                                    idx !== cols.baseColIndex &&
+                                    idx !== cols.totalColIndex &&
+                                    idx !== cols.ivaColIndex &&
+                                    idx !== cols.fechaColIndex &&
+                                    idx !== cols.mesColIndex &&
+                                    idx !== cols.estatusColIndex &&
+                                    !monthColumnMap[idx] &&
+                                    typeof c === 'string' &&
+                                    c.trim().length > 1 &&
+                                    isNaN(Number(c.replace(/[$,.\-\s]/g, '')))
+                                );
+                                if (textCandidates.length > 0) {
+                                    conceptoVal = textCandidates.map(s => s.trim()).filter((v, i, a) => a.indexOf(v) === i).join(' - ');
+                                }
+                            }
+
+                            if (!conceptoVal) {
+                                conceptoVal = currentSectionContext ? `Movimiento ${currentSectionContext} (Fila ${r + 1})` : `Partida sin descripción (Fila ${r + 1})`;
+                            }
+
+                            // Ignorar únicamente filas de totales/subtotales explícitos
+                            const firstNonEmptyText = rowUpperCells.find(c => c.length > 0 && isNaN(Number(c.replace(/[$,.\-\s]/g, '')))) || '';
+                            if (/^(TOTAL|SUMA|SUBTOTAL|UTILIDAD|SALDO|RESULTADO|DIFERENCIA|IVA POR|ISR)\b/.test(firstNonEmptyText)) {
+                                continue;
+                            }
+
+                            const tipoVal = cols.tipoColIndex !== -1 ? String(row[cols.tipoColIndex] || '').trim() : '';
+                            const estatusVal = cols.estatusColIndex !== -1 ? String(row[cols.estatusColIndex] || '').trim() : '';
+
+                            // Priorizar el valor de la columna MES
+                            let mesVal = '';
+                            if (cols.mesColIndex !== -1 && row[cols.mesColIndex]) {
+                                mesVal = detectMonthFromText(String(row[cols.mesColIndex])) || '';
+                            }
+                            if (!mesVal && matchedMonthFromSheet) {
+                                mesVal = matchedMonthFromSheet;
+                            }
+                            if (!mesVal && cols.fechaColIndex !== -1 && row[cols.fechaColIndex]) {
+                                mesVal = detectMonthFromExcelDate(row[cols.fechaColIndex]) || '';
+                            }
+                            if (mesVal) lastKnownMonth = mesVal;
+                            else mesVal = lastKnownMonth || 'ENERO';
+
+                            // Obtener monto base e impuestos exactos de la fila
+                            let montoBase = 0;
+                            let detectedTipoByCol = '';
+
+                            if (cols.baseColIndex !== -1) {
+                                montoBase = Math.abs(parseExcelNumber(row[cols.baseColIndex]));
+                            }
+                            if (montoBase === 0 && cols.abonoColIndex !== -1 && parseExcelNumber(row[cols.abonoColIndex]) !== 0) {
+                                montoBase = Math.abs(parseExcelNumber(row[cols.abonoColIndex]));
+                                detectedTipoByCol = 'INGRESO';
+                            }
+                            if (montoBase === 0 && cols.cargoColIndex !== -1 && parseExcelNumber(row[cols.cargoColIndex]) !== 0) {
+                                montoBase = Math.abs(parseExcelNumber(row[cols.cargoColIndex]));
+                                detectedTipoByCol = 'GASTO';
+                            }
+                            if (montoBase === 0 && cols.totalColIndex !== -1) {
+                                const tot = Math.abs(parseExcelNumber(row[cols.totalColIndex]));
+                                const iva = cols.ivaColIndex !== -1 ? Math.abs(parseExcelNumber(row[cols.ivaColIndex])) : 0;
+                                montoBase = tot > iva ? +(tot - iva).toFixed(2) : tot;
+                            }
+                            if (montoBase === 0 && !hasHorizontalMonths) {
+                                const fallbackNums = numericValuesInRow.filter(n => Math.abs(n) > 0);
+                                if (fallbackNums.length > 0) {
+                                    montoBase = Math.abs(fallbackNums[0]);
+                                }
+                            }
+
+                            const classified = classifyTransaction(
+                                conceptoVal,
+                                detectedTipoByCol || tipoVal,
+                                estatusVal || fullRowText,
+                                currentSectionContext
+                            );
+
+                            // Capturar IVA, retenciones e ISH explícitos si vienen en el Excel
+                            const explicitIva = cols.ivaColIndex !== -1 ? Math.abs(parseExcelNumber(row[cols.ivaColIndex])) : null;
+                            const explicitRetIva = cols.retIvaColIndex !== -1 ? Math.abs(parseExcelNumber(row[cols.retIvaColIndex])) : 0;
+                            const explicitRetIsr = cols.retIsrColIndex !== -1 ? Math.abs(parseExcelNumber(row[cols.retIsrColIndex])) : 0;
+                            const explicitIsh = cols.ishColIndex !== -1 ? Math.abs(parseExcelNumber(row[cols.ishColIndex])) : 0;
+                            const explicitTotal = cols.totalColIndex !== -1 ? Math.abs(parseExcelNumber(row[cols.totalColIndex])) : null;
+
+                            if (montoBase > 0) {
+                                parsedTransactions.push({
+                                    id: crypto.randomUUID(),
+                                    mes: mesVal,
+                                    tipo: classified.tipo,
+                                    concepto: conceptoVal,
+                                    monto: montoBase,
+                                    estatus: classified.estatus,
+                                    rubro: classified.rubro,
+                                    ivaExcel: explicitIva,
+                                    retIva: explicitRetIva,
+                                    retIsr: explicitRetIsr,
+                                    ish: explicitIsh,
+                                    totalExcel: explicitTotal
+                                });
+                            } else if (hasHorizontalMonths) {
+                                Object.entries(monthColumnMap).forEach(([colIdx, monthName]) => {
+                                    const num = Math.abs(parseExcelNumber(row[colIdx]));
+                                    if (num > 0) {
+                                        parsedTransactions.push({
+                                            id: crypto.randomUUID(),
+                                            mes: monthName,
+                                            tipo: classified.tipo,
+                                            concepto: conceptoVal,
+                                            monto: num,
+                                            estatus: classified.estatus,
+                                            rubro: classified.rubro
+                                        });
+                                    }
+                                });
+                            }
+                        }
+                    });
+
+                    if (parsedTransactions.length === 0) {
+                        showToast('No se detectaron movimientos válidos en el Excel. Verifica que tenga columnas de Concepto y Base/Monto.', 'error');
+                        return;
+                    }
+
+                    appState.transactions = parsedTransactions;
+                    appState.fileName = file.name;
+                    appState.selectedMonth = 'ALL';
+                    saveToLocalStorage();
+                    syncStateToUrlHash();
+                    populateMonthSelector();
+                    recalculateAll();
+                    showToast(`¡Listo! Se clasificaron ${parsedTransactions.length} movimientos de "${file.name}" y se actualizaron en el enlace compartible.`, 'success');
+                } catch (err) {
+                    console.error(err);
+                    showToast('Error al procesar el archivo Excel. Verifica que no esté protegido con contraseña.', 'error');
+                }
+            };
+            reader.readAsArrayBuffer(file);
+            event.target.value = '';
+        }
+
+        function detectMonthFromExcelDate(rawDate) {
+            if (typeof rawDate === 'number' && rawDate > 20000 && rawDate < 60000) {
+                const dateObj = new Date(Math.round((rawDate - 25569) * 86400 * 1000));
+                const mIdx = dateObj.getUTCMonth();
+                return MESES_ORDEN[mIdx] || null;
+            }
+            const str = String(rawDate).trim();
+            const textMonth = detectMonthFromText(str);
+            if (textMonth) return textMonth;
+
+            const parts = str.split(/[\/\-]/);
+            if (parts.length === 3) {
+                let mNum = parseInt(parts[1], 10);
+                if (parts[0].length === 4) mNum = parseInt(parts[1], 10);
+                if (mNum >= 1 && mNum <= 12) return MESES_ORDEN[mNum - 1];
+            }
+            return null;
+        }
+
+        // Exportar archivo Excel estructurado como BASE para futuras cargas
+        function downloadBaseExcel() {
+            const exportData = appState.transactions.map(t => {
+                const ivaExacto = getTransactionIva(t);
+                return {
+                    'MES': t.mes,
+                    'TIPO': t.tipo,
+                    'CONCEPTO': t.concepto,
+                    'RUBRO_FISCAL_LISR': t.rubro,
+                    'DESCRIPCION_RUBRO': RUBROS_FISCALES[t.rubro]?.nombre || '',
+                    'ESTATUS_FISCAL': t.estatus === 'DEDUCIBLE' ? 'FACTURADO' : 'ND',
+                    'MONTO_SUBTOTAL': t.monto,
+                    'IVA': ivaExacto,
+                    'RET IVA': Number(t.retIva) || 0,
+                    'TOTAL': +(t.monto + ivaExacto - (Number(t.retIva) || 0)).toFixed(2)
+                };
+            });
+
+            const ws = XLSX.utils.json_to_sheet(exportData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'BASE_TROMA_RESICO');
+            XLSX.writeFile(wb, 'BASE_TROMA_RESICO_ACTUALIZABLE.xlsx');
+            showToast('Archivo Excel base descargado. Úsalo para agregar nuevos meses y volverlo a subir.', 'success');
+        }
+
+        // ============================================================================
+        // 5. CÁLCULOS FINANCIEROS Y FISCALES (ESTADO DE RESULTADOS, ISR E IVA)
+        // ============================================================================
+        function getFilteredTransactions() {
+            if (appState.selectedMonth === 'ALL') {
+                return appState.transactions;
+            }
+            return appState.transactions.filter(t => t.mes === appState.selectedMonth);
+        }
+
+        function calculateMetrics(transactions) {
+            let ingresos = 0;
+            let gastosDeducibles = 0;
+            let gastosND = 0;
+            let costoVentasDed = 0;
+            let costoVentasND = 0;
+            let gastosOpDed = 0;
+            let gastosOpND = 0;
+            let gastosFinDed = 0;
+            let gastosFinND = 0;
+
+            const porRubro = {};
+            Object.keys(RUBROS_FISCALES).forEach(k => {
+                porRubro[k] = { deducible: 0, nd: 0, total: 0 };
+            });
+
+            transactions.forEach(t => {
+                const monto = Number(t.monto) || 0;
+                const isDed = t.estatus === 'DEDUCIBLE';
+                const rubroInfo = RUBROS_FISCALES[t.rubro] || RUBROS_FISCALES.OTROS_GASTOS_ND;
+
+                if (t.tipo === 'INGRESO') {
+                    ingresos += monto;
+                    porRubro.INGRESOS_OPERACION.deducible += monto;
+                    porRubro.INGRESOS_OPERACION.total += monto;
+                } else {
+                    if (isDed) gastosDeducibles += monto;
+                    else gastosND += monto;
+
+                    if (porRubro[rubroInfo.id]) {
+                        if (isDed) porRubro[rubroInfo.id].deducible += monto;
+                        else porRubro[rubroInfo.id].nd += monto;
+                        porRubro[rubroInfo.id].total += monto;
+                    }
+
+                    if (rubroInfo.grupo === 'COSTO') {
+                        if (isDed) costoVentasDed += monto;
+                        else costoVentasND += monto;
+                    } else if (rubroInfo.grupo === 'FINANCIERO') {
+                        if (isDed) gastosFinDed += monto;
+                        else gastosFinND += monto;
+                    } else {
+                        if (isDed) gastosOpDed += monto;
+                        else gastosOpND += monto;
+                    }
+                }
+            });
+
+            const totalGastos = gastosDeducibles + gastosND;
+            const totalCostoVentas = costoVentasDed + costoVentasND;
+            const utilidadBruta = ingresos - totalCostoVentas;
+            const totalGastosOp = gastosOpDed + gastosOpND;
+            const utilidadOperacion = utilidadBruta - totalGastosOp;
+            const totalGastosFin = gastosFinDed + gastosFinND;
+            const utilidadAntesImpuestos = utilidadOperacion - totalGastosFin;
+
+            // CÁLCULO DE ISR RESICO
+            const regimen = document.getElementById('regimen-selector')?.value || 'PM_30';
+            let baseGravableISR = 0;
+            let tasaISR = 0;
+            let isrCausado = 0;
+
+            if (regimen === 'PM_30') {
+                baseGravableISR = Math.max(0, ingresos - gastosDeducibles);
+                tasaISR = 0.30;
+                isrCausado = baseGravableISR * tasaISR;
+            } else {
+                baseGravableISR = ingresos;
+                if (ingresos <= 25000) tasaISR = 0.01;
+                else if (ingresos <= 50000) tasaISR = 0.011;
+                else if (ingresos <= 83333.33) tasaISR = 0.015;
+                else if (ingresos <= 208333.33) tasaISR = 0.02;
+                else tasaISR = 0.025;
+                isrCausado = baseGravableISR * tasaISR;
+            }
+
+            // CÁLCULO DE IMPUESTOS CAUSADOS EXCLUSIVAMENTE POR LOS GASTOS NO DEDUCIBLES (ND)
+            const isrAdicionalPorND = regimen === 'PM_30' ? (gastosND * 0.30) : 0;
+            const ivaNoAcreditablePorND = 0; 
+            const costoTotalFiscalND = isrAdicionalPorND;
+
+            // CÁLCULO DE IVA EXACTO (usando helper getTransactionIva y desglosando retenciones)
+            let ivaTrasladado = 0;
+            let ivaAcreditable = 0;
+            let totalRetIva = 0;
+            let totalRetIsr = 0;
+            let totalIsh = 0;
+
+            transactions.forEach(t => {
+                const ivaItem = getTransactionIva(t);
+
+                if (t.tipo === 'INGRESO') {
+                    ivaTrasladado += ivaItem;
+                    totalRetIva += Number(t.retIva) || 0;
+                    totalRetIsr += Number(t.retIsr) || 0;
+                } else if (t.tipo === 'GASTO') {
+                    totalIsh += Number(t.ish) || 0;
+                    ivaAcreditable += ivaItem;
+                }
+            });
+
+            ivaTrasladado = +ivaTrasladado.toFixed(2);
+            ivaAcreditable = +ivaAcreditable.toFixed(2);
+            totalRetIva = +totalRetIva.toFixed(2);
+
+            const ivaNeto = +(ivaTrasladado - ivaAcreditable - totalRetIva).toFixed(2);
+            const ivaPorPagar = Math.max(0, ivaNeto);
+            const isrNetoAPagar = Math.max(0, isrCausado - totalRetIsr);
+
+            const utilidadNetaContable = utilidadAntesImpuestos - isrCausado;
+
+            return {
+                ingresos,
+                gastosDeducibles,
+                gastosND,
+                totalGastos,
+                costoVentasDed,
+                costoVentasND,
+                totalCostoVentas,
+                utilidadBruta,
+                gastosOpDed,
+                gastosOpND,
+                totalGastosOp,
+                utilidadOperacion,
+                gastosFinDed,
+                gastosFinND,
+                totalGastosFin,
+                utilidadAntesImpuestos,
+                regimen,
+                baseGravableISR,
+                tasaISR,
+                isrCausado,
+                isrNetoAPagar,
+                totalRetIsr,
+                totalRetIva,
+                totalIsh,
+                ivaTrasladado,
+                ivaAcreditable,
+                ivaNeto,
+                ivaPorPagar,
+                isrAdicionalPorND,
+                ivaNoAcreditablePorND,
+                costoTotalFiscalND,
+                utilidadNetaContable,
+                porRubro
+            };
+        }
+
+        // ============================================================================
+        // 6. RENDERIZADO DE UI (KPIs, ESTADO DE RESULTADOS, TABLA Y GRÁFICOS)
+        // ============================================================================
+        function formatMXN(val) {
+            return new Intl.NumberFormat('es-MX', {
+                style: 'currency',
+                currency: 'MXN',
+                minimumFractionDigits: 2
+            }).format(val || 0);
+        }
+
+        function recalculateAll() {
+            const filtered = getFilteredTransactions();
+            const m = calculateMetrics(filtered);
+
+            // Actualizar encabezado de archivo y conteo
+            document.getElementById('active-filename').textContent = appState.fileName;
+            document.getElementById('record-count-badge').textContent = `${filtered.length} movimientos`;
+            document.getElementById('er-period-badge').textContent = appState.selectedMonth === 'ALL' ? 'Acumulado Anual' : appState.selectedMonth;
+
+            // 1. Actualizar KPIs
+            document.getElementById('kpi-ingresos').textContent = formatMXN(m.ingresos);
+            document.getElementById('kpi-iva-trasladado').textContent = formatMXN(m.ivaTrasladado);
+
+            document.getElementById('kpi-gastos-total').textContent = formatMXN(m.totalGastos);
+            document.getElementById('kpi-gastos-ded').textContent = formatMXN(m.gastosDeducibles);
+            document.getElementById('kpi-gastos-nd').textContent = formatMXN(m.gastosND);
+            document.getElementById('kpi-iva-acreditable').textContent = formatMXN(m.ivaAcreditable);
+
+            document.getElementById('kpi-utilidad-contable').textContent = formatMXN(m.utilidadNetaContable);
+            const margenPct = m.ingresos > 0 ? ((m.utilidadNetaContable / m.ingresos) * 100).toFixed(1) : '0.0';
+            document.getElementById('kpi-margen-neto').textContent = `Margen neto después de ISR: ${margenPct}%`;
+            document.getElementById('kpi-utilidad-fiscal').textContent = formatMXN(m.baseGravableISR);
+
+            const totalImpuestos = m.isrCausado + m.ivaPorPagar;
+            document.getElementById('kpi-impuestos-total').textContent = formatMXN(totalImpuestos);
+            document.getElementById('kpi-isr-val').textContent = formatMXN(m.isrCausado);
+            document.getElementById('kpi-iva-val').textContent = m.ivaNeto >= 0 ? formatMXN(m.ivaPorPagar) : `Favor ${formatMXN(Math.abs(m.ivaNeto))}`;
+
+            // 2. Renderizar Estado de Resultados
+            renderIncomeStatement(m);
+
+            // 3. Renderizar Paneles de Impuestos (ISR e IVA)
+            renderTaxPanels(m);
+
+            // 4. Renderizar Tabla Comparativa Mes por Mes (Enero a Diciembre)
+            renderMonthlyBreakdownTable();
+
+            // 5. Renderizar Tabla de Movimientos
+            renderTransactionsTable();
+
+            // 6. Renderizar Alertas Rápidas IA
+            renderQuickFiscalAlerts(m);
+
+            // 7. Actualizar Gráficos
+            renderCharts();
+        }
+
+        function renderMonthlyBreakdownTable() {
+            const tbody = document.getElementById('monthly-breakdown-body');
+            if (!tbody) return;
+
+            let sumIng = 0, sumDed = 0, sumND = 0, sumUAI = 0, sumISR = 0, sumIVA = 0, sumNeta = 0;
+
+            const rowsHtml = MESES_ORDEN.map(mes => {
+                const txs = appState.transactions.filter(t => t.mes === mes);
+                const m = calculateMetrics(txs);
+                const isSelected = appState.selectedMonth === mes;
+
+                sumIng += m.ingresos;
+                sumDed += m.gastosDeducibles;
+                sumND += m.gastosND;
+                sumUAI += m.utilidadAntesImpuestos;
+                sumISR += m.isrCausado;
+                sumIVA += m.ivaPorPagar;
+                sumNeta += m.utilidadNetaContable;
+
+                return `
+                    <tr class="hover:bg-slate-800/50 transition ${isSelected ? 'bg-emerald-950/30' : ''}">
+                        <td class="py-3 px-4 font-bold text-slate-200 font-mono flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full ${txs.length > 0 ? 'bg-emerald-400' : 'bg-slate-600'}"></span>
+                            ${mes}
+                        </td>
+                        <td class="py-3 px-4 text-right font-mono text-emerald-300">${formatMXN(m.ingresos)}</td>
+                        <td class="py-3 px-4 text-right font-mono text-slate-300">${formatMXN(m.gastosDeducibles)}</td>
+                        <td class="py-3 px-4 text-right font-mono ${m.gastosND > 0 ? 'text-amber-400' : 'text-slate-600'}">${formatMXN(m.gastosND)}</td>
+                        <td class="py-3 px-4 text-right font-mono text-indigo-300">${formatMXN(m.utilidadAntesImpuestos)}</td>
+                        <td class="py-3 px-4 text-right font-mono text-rose-400">${formatMXN(m.isrCausado)}</td>
+                        <td class="py-3 px-4 text-right font-mono text-sky-400">${formatMXN(m.ivaPorPagar)}</td>
+                        <td class="py-3 px-4 text-right font-mono font-bold ${m.utilidadNetaContable >= 0 ? 'text-white' : 'text-rose-400'}">${formatMXN(m.utilidadNetaContable)}</td>
+                        <td class="py-3 px-4 text-center">
+                            <button onclick="inspectSingleMonth('${mes}')" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-emerald-600 text-slate-200 hover:text-white text-[11px] font-medium transition cursor-pointer">
+                                Ver Edo. Resultados
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+            const totalRow = `
+                <tr class="bg-slate-950 font-bold border-t-2 border-emerald-500/40 text-xs">
+                    <td class="py-3.5 px-4 text-emerald-400 uppercase">TOTAL ANUAL (ENE–DIC)</td>
+                    <td class="py-3.5 px-4 text-right font-mono text-emerald-300">${formatMXN(sumIng)}</td>
+                    <td class="py-3.5 px-4 text-right font-mono text-slate-200">${formatMXN(sumDed)}</td>
+                    <td class="py-3.5 px-4 text-right font-mono text-amber-400">${formatMXN(sumND)}</td>
+                    <td class="py-3.5 px-4 text-right font-mono text-indigo-300">${formatMXN(sumUAI)}</td>
+                    <td class="py-3.5 px-4 text-right font-mono text-rose-400">${formatMXN(sumISR)}</td>
+                    <td class="py-3.5 px-4 text-right font-mono text-sky-400">${formatMXN(sumIVA)}</td>
+                    <td class="py-3.5 px-4 text-right font-mono text-emerald-300">${formatMXN(sumNeta)}</td>
+                    <td class="py-3.5 px-4 text-center">
+                        <button onclick="inspectSingleMonth('ALL')" class="px-2.5 py-1 rounded-lg bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white text-[11px] font-medium transition cursor-pointer">
+                            Ver Anual
+                        </button>
+                    </td>
+                </tr>
+            `;
+
+            tbody.innerHTML = rowsHtml + totalRow;
+        }
+
+        function inspectSingleMonth(mes) {
+            handleMonthChange(mes);
+            switchTab('estado-resultados');
+        }
+
+        function renderIncomeStatement(m) {
+            const tbody = document.getElementById('income-statement-body');
+            const pct = (val) => m.ingresos > 0 ? `${((val / m.ingresos) * 100).toFixed(1)}%` : '0.0%';
+
+            const rubroRow = (rubroKey) => {
+                const r = RUBROS_FISCALES[rubroKey];
+                const data = m.porRubro[rubroKey] || { deducible: 0, nd: 0, total: 0 };
+                if (data.total === 0) return '';
+                return `
+                    <tr class="hover:bg-slate-800/40 transition">
+                        <td class="py-2.5 px-5 pl-8">
+                            <div class="text-slate-200 font-medium">${r.nombre}</div>
+                            <div class="text-[10px] text-slate-500 font-mono">${r.articulo}</div>
+                        </td>
+                        <td class="py-2.5 px-4 text-right font-mono text-emerald-400/90">${formatMXN(data.deducible)}</td>
+                        <td class="py-2.5 px-4 text-right font-mono ${data.nd > 0 ? 'text-amber-400 font-medium' : 'text-slate-600'}">${formatMXN(data.nd)}</td>
+                        <td class="py-2.5 px-5 text-right font-mono text-slate-200">${formatMXN(data.total)}</td>
+                        <td class="py-2.5 px-4 text-right font-mono text-xs text-slate-400">${pct(data.total)}</td>
+                    </tr>
+                `;
+            };
+
+            tbody.innerHTML = `
+                <!-- INGRESOS -->
+                <tr class="bg-emerald-950/20 font-semibold">
+                    <td class="py-3 px-5 text-emerald-300">(+) INGRESOS TOTALES COBRADOS</td>
+                    <td class="py-3 px-4 text-right font-mono text-emerald-300">${formatMXN(m.ingresos)}</td>
+                    <td class="py-3 px-4 text-right font-mono text-slate-500">$0.00</td>
+                    <td class="py-3 px-5 text-right font-mono text-emerald-300">${formatMXN(m.ingresos)}</td>
+                    <td class="py-3 px-4 text-right font-mono text-emerald-400">100.0%</td>
+                </tr>
+
+                <!-- COSTO DE VENTAS -->
+                <tr class="bg-slate-950/40 text-xs font-semibold text-slate-400">
+                    <td colspan="5" class="py-2 px-5 uppercase tracking-wider">(-) Costo de Ventas / Operación Directa</td>
+                </tr>
+                ${rubroRow('COSTO_VENTAS')}
+                <tr class="bg-slate-900/90 font-semibold border-t border-slate-700">
+                    <td class="py-3 px-5 text-white">(=) UTILIDAD BRUTA</td>
+                    <td class="py-3 px-4 text-right font-mono text-slate-300">${formatMXN(m.ingresos - m.costoVentasDed)}</td>
+                    <td class="py-3 px-4 text-right font-mono text-amber-400/80">-${formatMXN(m.costoVentasND)}</td>
+                    <td class="py-3 px-5 text-right font-mono text-white">${formatMXN(m.utilidadBruta)}</td>
+                    <td class="py-3 px-4 text-right font-mono text-slate-300">${pct(m.utilidadBruta)}</td>
+                </tr>
+
+                <!-- GASTOS GENERALES DE OPERACIÓN -->
+                <tr class="bg-slate-950/40 text-xs font-semibold text-slate-400">
+                    <td colspan="5" class="py-2 px-5 uppercase tracking-wider">(-) Gastos Generales de Administración y Operación</td>
+                </tr>
+                ${rubroRow('SUELDOS_SALARIOS')}
+                ${rubroRow('ARRENDAMIENTO')}
+                ${rubroRow('SERVICIOS_PROFESIONALES')}
+                ${rubroRow('COMBUSTIBLES_VIATICOS')}
+                ${rubroRow('MANTENIMIENTO_EQUIPO')}
+                ${rubroRow('SERVICIOS_BASICOS_ADMIN')}
+                ${rubroRow('OTROS_GASTOS_ND')}
+                <tr class="bg-slate-800/30 font-medium text-slate-300">
+                    <td class="py-2.5 px-5">Total Gastos de Operación</td>
+                    <td class="py-2.5 px-4 text-right font-mono text-emerald-400">${formatMXN(m.gastosOpDed)}</td>
+                    <td class="py-2.5 px-4 text-right font-mono text-amber-400">${formatMXN(m.gastosOpND)}</td>
+                    <td class="py-2.5 px-5 text-right font-mono text-white">${formatMXN(m.totalGastosOp)}</td>
+                    <td class="py-2.5 px-4 text-right font-mono text-slate-400">${pct(m.totalGastosOp)}</td>
+                </tr>
+
+                <!-- UTILIDAD DE OPERACIÓN (EBIT) -->
+                <tr class="bg-slate-900/90 font-semibold border-t border-slate-700">
+                    <td class="py-3 px-5 text-white">(=) UTILIDAD DE OPERACIÓN (EBIT)</td>
+                    <td class="py-3 px-4 text-right font-mono text-slate-300">${formatMXN(m.ingresos - m.costoVentasDed - m.gastosOpDed)}</td>
+                    <td class="py-3 px-4 text-right font-mono text-amber-400/80">-${formatMXN(m.costoVentasND + m.gastosOpND)}</td>
+                    <td class="py-3 px-5 text-right font-mono text-white">${formatMXN(m.utilidadOperacion)}</td>
+                    <td class="py-3 px-4 text-right font-mono text-slate-300">${pct(m.utilidadOperacion)}</td>
+                </tr>
+
+                <!-- RESULTADO INTEGRAL DE FINANCIAMIENTO -->
+                ${rubroRow('GASTOS_FINANCIEROS')}
+
+                <!-- UTILIDAD ANTES DE IMPUESTOS -->
+                <tr class="bg-indigo-950/20 font-semibold border-t border-indigo-500/30">
+                    <td class="py-3 px-5 text-indigo-300">(=) UTILIDAD ANTES DE IMPUESTOS (UAI)</td>
+                    <td class="py-3 px-4 text-right font-mono text-indigo-200">${formatMXN(m.ingresos - m.gastosDeducibles)}</td>
+                    <td class="py-3 px-4 text-right font-mono text-amber-400">-${formatMXN(m.gastosND)}</td>
+                    <td class="py-3 px-5 text-right font-mono text-indigo-300">${formatMXN(m.utilidadAntesImpuestos)}</td>
+                    <td class="py-3 px-4 text-right font-mono text-indigo-300">${pct(m.utilidadAntesImpuestos)}</td>
+                </tr>
+
+                <!-- IMPUESTO SOBRE LA RENTA (ISR RESICO) -->
+                <tr class="text-rose-300">
+                    <td class="py-2.5 px-5">(-) ISR Causado Régimen RESICO (${(m.tasaISR * 100).toFixed(2)}%)</td>
+                    <td class="py-2.5 px-4 text-right font-mono text-slate-500">—</td>
+                    <td class="py-2.5 px-4 text-right font-mono text-slate-500">—</td>
+                    <td class="py-2.5 px-5 text-right font-mono text-rose-400">-${formatMXN(m.isrCausado)}</td>
+                    <td class="py-2.5 px-4 text-right font-mono text-rose-400">${pct(m.isrCausado)}</td>
+                </tr>
+
+                <!-- UTILIDAD NETA DEL EJERCICIO -->
+                <tr class="bg-emerald-950/30 font-bold text-base border-t-2 border-emerald-500/40">
+                    <td class="py-3.5 px-5 text-emerald-300">(=) UTILIDAD NETA DEL PERIODO</td>
+                    <td class="py-3.5 px-4 text-right font-mono text-slate-400 text-xs">Base Fiscal: ${formatMXN(m.baseGravableISR)}</td>
+                    <td class="py-3.5 px-4 text-right font-mono text-amber-400 text-xs">Impacto ND: ${formatMXN(m.gastosND)}</td>
+                    <td class="py-3.5 px-5 text-right font-mono text-emerald-300">${formatMXN(m.utilidadNetaContable)}</td>
+                    <td class="py-3.5 px-4 text-right font-mono text-emerald-300 text-sm">${pct(m.utilidadNetaContable)}</td>
+                </tr>
+            `;
+        }
+
+        function renderTaxPanels(m) {
+            const isrContainer = document.getElementById('isr-calculation-details');
+            if (m.regimen === 'PM_30') {
+                isrContainer.innerHTML = `
+                    <div class="flex justify-between py-1 border-b border-slate-800/60">
+                        <span class="text-slate-400">(+) Ingresos Cobrados (CFDI):</span>
+                        <span class="font-mono text-white">${formatMXN(m.ingresos)}</span>
+                    </div>
+                    <div class="flex justify-between py-1 border-b border-slate-800/60">
+                        <span class="text-slate-400">(-) Deducciones Autorizadas (Facturado):</span>
+                        <span class="font-mono text-emerald-400">-${formatMXN(m.gastosDeducibles)}</span>
+                    </div>
+                    <div class="flex justify-between py-1 border-b border-slate-800/60 text-amber-400/90">
+                        <span>(x) Gastos No Deducibles (Excluidos):</span>
+                        <span class="font-mono">${formatMXN(m.gastosND)}</span>
+                    </div>
+                    <div class="flex justify-between py-1.5 font-semibold text-indigo-300">
+                        <span>(=) Utilidad Fiscal Gravable:</span>
+                        <span class="font-mono">${formatMXN(m.baseGravableISR)}</span>
+                    </div>
+                    <div class="flex justify-between py-1 border-b border-slate-800/60">
+                        <span class="text-slate-400">(x) Tasa ISR Persona Moral (Art. 9 LISR):</span>
+                        <span class="font-mono text-white">30.00%</span>
+                    </div>
+                    <div class="flex justify-between pt-2 text-sm font-bold text-rose-400 border-b border-slate-800 pb-2">
+                        <span>(=) ISR RESICO a Pagar:</span>
+                        <span class="font-mono">${formatMXN(m.isrCausado)}</span>
+                    </div>
+                    <!-- Desglose Impuestos Causados por GASTOS NO DEDUCIBLES -->
+                    <div class="bg-amber-950/20 border border-amber-500/30 rounded-xl p-3 space-y-1.5 mt-2">
+                        <div class="text-[11px] font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1">
+                            <i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i>
+                            Impacto Fiscal por Gastos ND (Solo ISR Adicional)
+                        </div>
+                        <div class="flex justify-between text-[11px] text-slate-300">
+                            <span>• ISR Extra (30% s/ Gastos ND):</span>
+                            <span class="font-mono text-amber-300">${formatMXN(m.isrAdicionalPorND)}</span>
+                        </div>
+                        <div class="flex justify-between text-[11px] font-bold text-amber-300 pt-1 border-t border-amber-500/20">
+                            <span>Costo Tributario Total por ND:</span>
+                            <span class="font-mono">${formatMXN(m.costoTotalFiscalND)}</span>
+                        </div>
+                    </div>
+                `;
+            } else {
+                isrContainer.innerHTML = `
+                    <div class="flex justify-between py-1 border-b border-slate-800/60">
+                        <span class="text-slate-400">(+) Ingresos Efectivamente Cobrados:</span>
+                        <span class="font-mono text-white">${formatMXN(m.ingresos)}</span>
+                    </div>
+                    <div class="flex justify-between py-1 border-b border-slate-800/60">
+                        <span class="text-slate-400">(-) Deducciones para ISR (Art. 113-E):</span>
+                        <span class="font-mono text-slate-500">$0.00 (No aplica)</span>
+                    </div>
+                    <div class="flex justify-between py-1 border-b border-slate-800/60">
+                        <span class="text-slate-400">(x) Tasa Aplicable Tablas RESICO PF:</span>
+                        <span class="font-mono text-emerald-400">${(m.tasaISR * 100).toFixed(2)}%</span>
+                    </div>
+                    <div class="flex justify-between pt-2 text-sm font-bold text-rose-400">
+                        <span>(=) ISR RESICO PF a Pagar:</span>
+                        <span class="font-mono">${formatMXN(m.isrCausado)}</span>
+                    </div>
+                `;
+            }
+
+            const ivaContainer = document.getElementById('iva-calculation-details');
+            const retIvaHtml = m.totalRetIva > 0 ? `
+                <div class="flex justify-between py-1 border-b border-slate-800/60">
+                    <span class="text-slate-400">(-) Retenciones de IVA Aplicadas:</span>
+                    <span class="font-mono text-indigo-400">-${formatMXN(m.totalRetIva)}</span>
+                </div>
+            ` : '';
+
+            ivaContainer.innerHTML = `
+                <div class="flex justify-between py-1 border-b border-slate-800/60">
+                    <span class="text-slate-400">(+) IVA Trasladado en Ventas:</span>
+                    <span class="font-mono text-white">${formatMXN(m.ivaTrasladado)}</span>
+                </div>
+                <div class="flex justify-between py-1 border-b border-slate-800/60">
+                    <span class="text-slate-400">(-) IVA Acreditable (Gastos Facturados):</span>
+                    <span class="font-mono text-sky-400">-${formatMXN(m.ivaAcreditable)}</span>
+                </div>
+                ${retIvaHtml}
+                <div class="flex justify-between pt-2 text-sm font-bold ${m.ivaNeto >= 0 ? 'text-amber-300' : 'text-emerald-400'}">
+                    <span>${m.ivaNeto >= 0 ? '(=) IVA Neto a Cargo (Pagar SAT):' : '(=) Saldo a Favor de IVA:'}</span>
+                    <span class="font-mono">${formatMXN(Math.abs(m.ivaNeto))}</span>
+                </div>
+            `;
+        }
+
+        function renderQuickFiscalAlerts(m) {
+            const container = document.getElementById('quick-fiscal-alerts');
+            const alerts = [];
+
+            if (m.gastosND > 0) {
+                alerts.push(`
+                    <div class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-200">
+                        <div class="font-semibold mb-0.5">Fuga Fiscal por Gastos ND: ${formatMXN(m.gastosND)}</div>
+                        <p class="text-[11px] text-amber-200/80">Por no contar con CFDI, estos gastos te están generando un ISR adicional de <strong>${formatMXN(m.isrAdicionalPorND)}</strong> (al 30%).</p>
+                    </div>
+                `);
+            }
+
+            const ratioND = m.totalGastos > 0 ? (m.gastosND / m.totalGastos) * 100 : 0;
+            if (ratioND > 10) {
+                alerts.push(`
+                    <div class="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-200">
+                        <div class="font-semibold mb-0.5">Alerta de Riesgo SAT (${ratioND.toFixed(1)}% ND)</div>
+                        <p class="text-[11px] text-rose-200/80">Tus gastos sin comprobante superan el 10% del gasto total. En RESICO Persona Moral, esto distorsiona tu utilidad fiscal real.</p>
+                    </div>
+                `);
+            }
+
+            if (m.ingresos > 0 && m.utilidadNetaContable / m.ingresos >= 0.15) {
+                alerts.push(`
+                    <div class="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-200">
+                        <div class="font-semibold mb-0.5">Margen Operativo Saludable (${((m.utilidadNetaContable / m.ingresos) * 100).toFixed(1)}%)</div>
+                        <p class="text-[11px] text-emerald-200/80">Tu operación mantiene una rentabilidad sólida tras cubrir costos, gastos y carga tributaria.</p>
+                    </div>
+                `);
+            }
+
+            container.innerHTML = alerts.length ? alerts.join('') : `<p class="text-slate-400">Sin alertas críticas en el periodo seleccionado.</p>`;
+        }
+
+        // ============================================================================
+        // 7.1. RENDERIZADO DE TABLA DETALLADA DE MOVIMIENTOS
+        // ============================================================================
+        function renderTransactionsTable() {
+            const tbody = document.getElementById('transactions-table-body');
+            if (!tbody) return;
+
+            const searchInput = document.getElementById('search-input');
+            const filterType = document.getElementById('filter-type');
+            const filterFiscal = document.getElementById('filter-fiscal');
+
+            const searchTerm = searchInput ? searchInput.value.toUpperCase().trim() : '';
+            const typeFilter = filterType ? filterType.value : 'ALL';
+            const fiscalFilter = filterFiscal ? filterFiscal.value : 'ALL';
+
+            const filtered = getFilteredTransactions().filter(t => {
+                if (typeFilter !== 'ALL' && t.tipo !== typeFilter) return false;
+                if (fiscalFilter !== 'ALL' && t.estatus !== fiscalFilter) return false;
+                if (searchTerm && !t.concepto.toUpperCase().includes(searchTerm) && !t.mes.toUpperCase().includes(searchTerm)) return false;
+                return true;
+            });
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="9" class="py-6 text-center text-slate-500">No se encontraron movimientos con los filtros seleccionados.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = filtered.map(t => {
+                const isDed = t.estatus === 'DEDUCIBLE';
+                const ivaVal = getTransactionIva(t);
+                const totalVal = +(t.monto + ivaVal - (Number(t.retIva) || 0)).toFixed(2);
+
+                const rubroOptions = Object.values(RUBROS_FISCALES)
+                    .map(r => `<option value="${r.id}" ${r.id === t.rubro ? 'selected' : ''}>${r.nombre}</option>`)
+                    .join('');
+
+                return `
+                    <tr class="hover:bg-slate-800/40 transition">
+                        <td class="py-3 px-4 font-mono text-slate-300 font-medium">${t.mes}</td>
+                        <td class="py-3 px-4">
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold ${t.tipo === 'INGRESO' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-slate-800 text-slate-300'}">
+                                ${t.tipo}
+                            </span>
+                        </td>
+                        <td class="py-3 px-4 text-slate-200 max-w-xs truncate" title="${t.concepto}">${t.concepto}</td>
+                        <td class="py-3 px-4">
+                            <select onchange="updateTransactionRubro('${t.id}', this.value)" class="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-slate-300 focus:outline-none w-full">
+                                ${rubroOptions}
+                            </select>
+                        </td>
+                        <td class="py-3 px-4 text-center">
+                            ${t.tipo === 'GASTO' ? `
+                                <button onclick="toggleTransactionFiscal('${t.id}')" class="px-2 py-1 rounded-md text-[10px] font-bold transition cursor-pointer ${isDed ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30' : 'bg-amber-500/20 text-amber-300 border border-amber-500/30 hover:bg-amber-500/30'}" title="Haz clic para alternar estatus fiscal">
+                                    ${isDed ? 'FACTURADO' : 'ND'}
+                                </button>
+                            ` : `<span class="text-slate-500 text-[10px]">—</span>`}
+                        </td>
+                        <td class="py-3 px-4 text-right font-mono text-slate-200">${formatMXN(t.monto)}</td>
+                        <td class="py-3 px-4 text-right font-mono text-sky-400">${formatMXN(ivaVal)}</td>
+                        <td class="py-3 px-4 text-right font-mono font-bold text-white">${formatMXN(totalVal)}</td>
+                        <td class="py-3 px-4 text-center">
+                            <button onclick="deleteTransaction('${t.id}')" class="p-1 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition" title="Eliminar registro">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+            lucide.createIcons();
+        }
+
+        // ============================================================================
+        // 8. GRÁFICOS CON CHART.JS
+        // ============================================================================
+        function renderCharts() {
+            const months = MESES_ORDEN;
+            const monthlyIngresos = [];
+            const monthlyGastosDed = [];
+            const monthlyGastosND = [];
+            const monthlyISR = [];
+            const monthlyIVA = [];
+
+            months.forEach(mes => {
+                const txs = appState.transactions.filter(t => t.mes === mes);
+                const m = calculateMetrics(txs);
+                monthlyIngresos.push(m.ingresos);
+                monthlyGastosDed.push(m.gastosDeducibles);
+                monthlyGastosND.push(m.gastosND);
+                monthlyISR.push(m.isrCausado);
+                monthlyIVA.push(m.ivaPorPagar);
+            });
+
+            // Destruir gráficos anteriores si existen para evitar solapamientos
+            if (appState.charts.flow) appState.charts.flow.destroy();
+            if (appState.charts.categories) appState.charts.categories.destroy();
+            if (appState.charts.tax) appState.charts.tax.destroy();
+
+            // 1. Gráfico de Flujo Mensual
+            const ctxFlow = document.getElementById('chart-monthly-flow').getContext('2d');
+            appState.charts.flow = new Chart(ctxFlow, {
+                type: 'bar',
+                data: {
+                    labels: months.map(m => m.substring(0, 3)),
+                    datasets: [
+                        { label: 'Ingresos Cobrados', data: monthlyIngresos, backgroundColor: '#10b981', borderRadius: 4 },
+                        { label: 'Gastos Facturados (Ded)', data: monthlyGastosDed, backgroundColor: '#64748b', borderRadius: 4 },
+                        { label: 'Gastos No Deducibles (ND)', data: monthlyGastosND, backgroundColor: '#f59e0b', borderRadius: 4 }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { labels: { color: '#cbd5e1', font: { size: 11 } } } },
+                    scales: {
+                        x: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(148,163,184,0.08)' } },
+                        y: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(148,163,184,0.08)' } }
+                    }
+                }
+            });
+
+            // 2. Gráfico de Categorías de Gastos (Donut)
+            const filtered = getFilteredTransactions();
+            const currentM = calculateMetrics(filtered);
+            const catLabels = [];
+            const catData = [];
+            const catColors = ['#10b981', '#38bdf8', '#818cf8', '#f43f5e', '#f59e0b', '#a855f7', '#14b8a6', '#64748b'];
+
+            Object.keys(RUBROS_FISCALES).forEach((k, idx) => {
+                if (k === 'INGRESOS_OPERACION') return;
+                const totalRubro = (currentM.porRubro[k]?.deducible || 0) + (currentM.porRubro[k]?.nd || 0);
+                if (totalRubro > 0) {
+                    catLabels.push(RUBROS_FISCALES[k].nombre.substring(0, 25) + '...');
+                    catData.push(totalRubro);
+                }
+            });
+
+            const ctxCat = document.getElementById('chart-expense-categories').getContext('2d');
+            appState.charts.categories = new Chart(ctxCat, {
+                type: 'doughnut',
+                data: {
+                    labels: catLabels,
+                    datasets: [{
+                        data: catData,
+                        backgroundColor: catColors,
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom', labels: { color: '#cbd5e1', font: { size: 10 }, boxWidth: 12 } }
+                    }
+                }
+            });
+
+            // 3. Gráfico de Impuestos Mensuales
+            const ctxTax = document.getElementById('chart-taxes-monthly').getContext('2d');
+            appState.charts.tax = new Chart(ctxTax, {
+                type: 'line',
+                data: {
+                    labels: months.map(m => m.substring(0, 3)),
+                    datasets: [
+                        { label: 'ISR RESICO Causado', data: monthlyISR, borderColor: '#f43f5e', backgroundColor: 'rgba(244,63,94,0.15)', fill: true, tension: 0.35 },
+                        { label: 'IVA Neto a Pagar', data: monthlyIVA, borderColor: '#38bdf8', backgroundColor: 'rgba(56,189,248,0.15)', fill: true, tension: 0.35 }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { labels: { color: '#cbd5e1', font: { size: 11 } } } },
+                    scales: {
+                        x: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(148,163,184,0.08)' } },
+                        y: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(148,163,184,0.08)' } }
+                    }
+                }
+            });
+        }
+
+        // ============================================================================
+        // 9. INTEGRACIÓN CON GEMINI API (ASESOR FISCAL Y FINANCIERO IA)
+        // ============================================================================
+        async function callGeminiAPI(promptText) {
+            const apiKey = ""; // Provisto en tiempo de ejecución
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+
+            const filtered = getFilteredTransactions();
+            const m = calculateMetrics(filtered);
+
+            // Construir contexto financiero estructurado
+            const resumenFinanciero = {
+                empresa: "TROMA",
+                regimenFiscal: m.regimen === 'PM_30' ? "RESICO Persona Moral (Art. 206 LISR - Flujo de Efectivo, Tasa 30%)" : "RESICO Persona Física (Art. 113-E LISR)",
+                periodoAnalizado: appState.selectedMonth === 'ALL' ? 'Acumulado Anual' : appState.selectedMonth,
+                ingresosCobrados: m.ingresos,
+                costoVentasTotal: m.totalCostoVentas,
+                utilidadBruta: m.utilidadBruta,
+                gastosOperacionTotal: m.totalGastosOp,
+                gastosDeduciblesFacturados: m.gastosDeducibles,
+                gastosNoDeduciblesND: m.gastosND,
+                utilidadAntesImpuestos: m.utilidadAntesImpuestos,
+                baseGravableISR: m.baseGravableISR,
+                isrCausado: m.isrCausado,
+                ivaTrasladado: m.ivaTrasladado,
+                ivaAcreditable: m.ivaAcreditable,
+                totalRetIva: m.totalRetIva,
+                ivaNeto: m.ivaNeto,
+                utilidadNetaContable: m.utilidadNetaContable,
+                desglosePorRubro: Object.keys(m.porRubro).map(k => ({
+                    rubro: RUBROS_FISCALES[k]?.nombre,
+                    deducible: m.porRubro[k].deducible,
+                    noDeducible: m.porRubro[k].nd
+                })).filter(x => (x.deducible + x.noDeducible) > 0)
+            };
+
+            const systemInstruction = `Actúa como un Director Financiero (CFO) y Contador Público Certificado especialista en legislación fiscal mexicana (LISR, LIVA, CFF y Régimen Simplificado de Confianza - RESICO).
+            Analiza los datos financieros reales proporcionados en JSON.
+            Reglas de respuesta:
+            1. Sé preciso con las cifras en pesos mexicanos (MXN).
+            2. Explica claramente el impacto de los gastos No Deducibles (ND) tanto en la base del ISR como en el no acreditamiento del IVA.
+            3. Proporciona recomendaciones legales, prácticas y accionables de planeación fiscal y optimización de rentabilidad.
+            4. Usa formato limpio con encabezados claros, viñetas y negritas para facilitar la lectura ejecutiva.`;
+
+            const payload = {
+                contents: [{
+                    parts: [{
+                        text: `DATOS FINANCIEROS Y FISCALES ACTUALES DE LA EMPRESA:\n${JSON.stringify(resumenFinanciero, null, 2)}\n\nSOLICITUD DEL USUARIO:\n${promptText}`
+                    }]
+                }],
+                systemInstruction: {
+                    parts: [{ text: systemInstruction }]
+                }
+            };
+
+            // Exponential backoff
+            const delays = [1000, 2000, 4000, 8000];
+            for (let attempt = 0; attempt <= delays.length; attempt++) {
+                try {
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    const result = await response.json();
+                    return result.candidates?.[0]?.content?.parts?.[0]?.text || 'No se pudo generar una respuesta.';
+                } catch (error) {
+                    if (attempt === delays.length) throw error;
+                    await new Promise(res => setTimeout(res, delays[attempt]));
+                }
+            }
+        }
+
+        function formatMarkdownToHTML(md) {
+            return md
+                .replace(/^### (.*$)/gim, '<h4 class="text-sm font-bold text-amber-300 mt-4 mb-1.5">$1</h4>')
+                .replace(/^## (.*$)/gim, '<h3 class="text-base font-bold text-white mt-5 mb-2 border-b border-slate-800 pb-1">$1</h3>')
+                .replace(/^# (.*$)/gim, '<h2 class="text-lg font-bold text-emerald-400 mt-4 mb-2">$1</h2>')
+                .replace(/\*\*(.*?)\*\*/g, '<strong class="text-white font-semibold">$1</strong>')
+                .replace(/^\* (.*$)/gim, '<li class="ml-4 list-disc my-1">$1</li>')
+                .replace(/^- (.*$)/gim, '<li class="ml-4 list-disc my-1">$1</li>')
+                .replace(/\n\n/g, '<br><br>')
+                .replace(/\n/g, '<br>');
+        }
+
+        async function runFullAIAnalysis() {
+            const output = document.getElementById('ai-analysis-output');
+            const btn = document.getElementById('btn-run-ai');
+            btn.disabled = true;
+            btn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Analizando finanzas...`;
+            lucide.createIcons();
+
+            output.innerHTML = `
+                <div class="flex flex-col items-center justify-center h-64 space-y-3 text-amber-300 animate-pulse-subtle">
+                    <i data-lucide="brain-circuit" class="w-10 h-10"></i>
+                    <p class="text-sm font-medium">Auditando Estado de Resultados, deducibilidad LISR y determinación de IVA...</p>
+                </div>
+            `;
+            lucide.createIcons();
+
+            try {
+                const prompt = `Realiza un Diagnóstico Ejecutivo Integral de mi Estado de Resultados e Impuestos RESICO:
+                1. Resumen ejecutivo de salud financiera (márgenes bruto, operativo y neto).
+                2. Auditoría fiscal de gastos Facturados vs No Deducibles (ND): calcula exactamente cuánto dinero adicional pago en ISR e IVA por tener partidas ND.
+                3. Análisis de los rubros de mayor peso y recomendaciones para optimizar costos.
+                4. 4 recomendaciones estratégicas y legales (basadas en LISR / LIVA para RESICO) para mejorar el flujo de efectivo y reducir legalmente la carga tributaria.`;
+                
+                const responseText = await callGeminiAPI(prompt);
+                output.innerHTML = formatMarkdownToHTML(responseText);
+            } catch (err) {
+                output.innerHTML = `<div class="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs">Ocurrió un error al conectar con el motor de IA. Intenta nuevamente en unos segundos.</div>`;
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = `<i data-lucide="sparkles" class="w-4 h-4"></i> Generar Diagnóstico Completo`;
+                lucide.createIcons();
+            }
+        }
+
+        async function askCustomAIQuestion() {
+            const input = document.getElementById('ai-custom-question');
+            const question = input.value.trim();
+            if (!question) return;
+
+            const output = document.getElementById('ai-analysis-output');
+            const btn = document.getElementById('btn-ask-ai');
+            btn.disabled = true;
+            input.value = '';
+
+            output.innerHTML = `
+                <div class="flex flex-col items-center justify-center h-64 space-y-3 text-amber-300 animate-pulse-subtle">
+                    <i data-lucide="sparkles" class="w-8 h-8"></i>
+                    <p class="text-xs font-medium">Analizando tu consulta: "${question}"...</p>
+                </div>
+            `;
+            lucide.createIcons();
+
+            try {
+                const responseText = await callGeminiAPI(question);
+                output.innerHTML = `
+                    <div class="mb-3 pb-2 border-b border-slate-800 text-xs text-amber-400 font-medium">Consulta: "${question}"</div>
+                    ${formatMarkdownToHTML(responseText)}
+                `;
+            } catch (err) {
+                output.innerHTML = `<div class="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs">Error al procesar la consulta con IA.</div>`;
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        function triggerSuggestedPrompt(prompt) {
+            document.getElementById('ai-custom-question').value = prompt;
+            askCustomAIQuestion();
+        }
+
+        // ============================================================================
+        // 10. INTERACTIVIDAD, EDICIÓN EN VIVO Y PERSISTENCIA EN LOCALSTORAGE
+        // ============================================================================
+        function switchTab(tabId) {
+            ['estado-resultados', 'comparativo-mensual', 'detalle-movimientos', 'graficos', 'asistente-ia'].forEach(id => {
+                document.getElementById(`view-${id}`).classList.add('hidden');
+                const btn = document.getElementById(`tab-${id}`);
+                btn.classList.remove('border-emerald-500', 'text-emerald-400');
+                btn.classList.add('border-transparent', 'text-slate-400');
+            });
+
+            document.getElementById(`view-${tabId}`).classList.remove('hidden');
+            const activeBtn = document.getElementById(`tab-${tabId}`);
+            activeBtn.classList.remove('border-transparent', 'text-slate-400');
+            activeBtn.classList.add('border-emerald-500', 'text-emerald-400');
+
+            if (tabId === 'graficos') renderCharts();
+        }
+
+        function handleMonthChange(val) {
+            appState.selectedMonth = val;
+            populateMonthSelector();
+            recalculateAll();
+        }
+
+        function getUniqueMonths() {
+            const set = new Set(appState.transactions.map(t => t.mes));
+            return MESES_ORDEN.filter(m => set.has(m));
+        }
+
+        function populateMonthSelector() {
+            const select = document.getElementById('month-selector');
+            const set = new Set(appState.transactions.map(t => t.mes));
+            const months = getUniqueMonths();
+            select.innerHTML = `<option value="ALL">Acumulado Anual (${months.length} meses)</option>` +
+                MESES_ORDEN.map(m => `<option value="${m}">${m}</option>`).join('');
+            select.value = appState.selectedMonth;
+
+            // Renderizar píldoras rápidas de Enero a Diciembre en la barra superior
+            const pillsBar = document.getElementById('month-pills-bar');
+            if (pillsBar) {
+                const isAll = appState.selectedMonth === 'ALL';
+                const allBtn = `
+                    <button onclick="handleMonthChange('ALL')" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold whitespace-nowrap transition cursor-pointer ${isAll ? 'bg-emerald-600 text-white shadow-sm' : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700'}">
+                        ANUAL (ENE–DIC)
+                    </button>
+                `;
+                const monthBtns = MESES_ORDEN.map(m => {
+                    const active = appState.selectedMonth === m;
+                    const hasData = set.has(m);
+                    return `
+                        <button onclick="handleMonthChange('${m}')" class="px-2.5 py-1 rounded-lg text-[11px] font-medium whitespace-nowrap transition cursor-pointer ${active ? 'bg-emerald-600 text-white font-bold shadow-sm' : hasData ? 'bg-slate-800/60 text-slate-300 hover:bg-slate-700' : 'bg-slate-900/40 text-slate-600 hover:text-slate-400'}">
+                            ${m.substring(0, 3)}
+                        </button>
+                    `;
+                }).join('');
+                pillsBar.innerHTML = allBtn + monthBtns;
+            }
+        }
+
+        function updateTransactionRubro(id, newRubro) {
+            const tx = appState.transactions.find(t => t.id === id);
+            if (tx) {
+                tx.rubro = newRubro;
+                saveToLocalStorage();
+                syncStateToUrlHash();
+                recalculateAll();
+                showToast('Clasificación fiscal actualizada.', 'info');
+            }
+        }
+
+        function toggleTransactionFiscal(id) {
+            const tx = appState.transactions.find(t => t.id === id);
+            if (tx && tx.tipo === 'GASTO') {
+                tx.estatus = tx.estatus === 'DEDUCIBLE' ? 'ND' : 'DEDUCIBLE';
+                saveToLocalStorage();
+                syncStateToUrlHash();
+                recalculateAll();
+                showToast(`Estatus actualizado a ${tx.estatus === 'DEDUCIBLE' ? 'Facturado (Deducible)' : 'No Deducible (ND)'}.`, 'info');
+            }
+        }
+
+        function deleteTransaction(id) {
+            appState.transactions = appState.transactions.filter(t => t.id !== id);
+            saveToLocalStorage();
+            syncStateToUrlHash();
+            populateMonthSelector();
+            recalculateAll();
+            showToast('Registro eliminado del archivo base.', 'info');
+        }
+
+        function openNewMovementModal() {
+            const selectRubro = document.getElementById('new-rubro');
+            selectRubro.innerHTML = Object.values(RUBROS_FISCALES)
+                .map(r => `<option value="${r.id}">${r.nombre}</option>`)
+                .join('');
+            document.getElementById('new-movement-modal').classList.remove('hidden');
+        }
+
+        function closeNewMovementModal() {
+            document.getElementById('new-movement-modal').classList.add('hidden');
+        }
+
+        function saveNewMovement() {
+            const mes = document.getElementById('new-mes').value;
+            const tipo = document.getElementById('new-tipo').value;
+            const concepto = document.getElementById('new-concepto').value.trim();
+            const monto = parseFloat(document.getElementById('new-monto').value);
+            const estatus = tipo === 'INGRESO' ? 'DEDUCIBLE' : document.getElementById('new-estatus').value;
+            const rubro = tipo === 'INGRESO' ? 'INGRESOS_OPERACION' : document.getElementById('new-rubro').value;
+
+            if (!concepto || isNaN(monto) || monto <= 0) {
+                showToast('Ingresa un concepto y un monto válido mayor a cero.', 'error');
+                return;
+            }
+
+            appState.transactions.push({
+                id: crypto.randomUUID(),
+                mes,
+                tipo,
+                concepto,
+                monto,
+                estatus,
+                rubro
+            });
+
+            saveToLocalStorage();
+            syncStateToUrlHash();
+            populateMonthSelector();
+            recalculateAll();
+            closeNewMovementModal();
+            document.getElementById('new-concepto').value = '';
+            document.getElementById('new-monto').value = '';
+            showToast('Movimiento agregado a la base.', 'success');
+        }
+
+        // Codificar y sincronizar el estado completo comprimido en el hash de la URL (#data=...)
+        function syncStateToUrlHash() {
+            try {
+                if (typeof LZString === 'undefined') return;
+                // Compactar claves conservando ivaExcel y retIva para mantener exactitud
+                const compactPayload = {
+                    f: appState.fileName,
+                    m: appState.selectedMonth,
+                    t: appState.transactions.map(item => [
+                        item.mes,
+                        item.tipo,
+                        item.concepto,
+                        item.monto,
+                        item.estatus,
+                        item.rubro,
+                        item.ivaExcel !== undefined && item.ivaExcel !== null ? item.ivaExcel : null,
+                        item.retIva || 0
+                    ])
+                };
+                const compressed = LZString.compressToEncodedURIComponent(JSON.stringify(compactPayload));
+                if (compressed && compressed.length < 32000) {
+                    window.history.replaceState(null, '', `#data=${compressed}`);
+                }
+            } catch (e) {
+                // Ignorar si el entorno restringe history.replaceState
+            }
+        }
+
+        // Leer y decodificar datos desde el enlace compartido (#data=...)
+        function loadStateFromUrlHash() {
+            try {
+                if (typeof LZString === 'undefined') return false;
+                const hash = window.location.hash || '';
+                if (!hash.startsWith('#data=')) return false;
+
+                const encoded = hash.slice(6);
+                const decompressed = LZString.decompressFromEncodedURIComponent(encoded);
+                if (!decompressed) return false;
+
+                const parsed = JSON.parse(decompressed);
+                if (parsed && Array.isArray(parsed.t) && parsed.t.length > 0) {
+                    appState.fileName = parsed.f || 'Archivo Compartido.xlsx';
+                    appState.selectedMonth = parsed.m || 'ALL';
+                    appState.transactions = parsed.t.map(row => ({
+                        id: crypto.randomUUID(),
+                        mes: row[0] || 'ENERO',
+                        tipo: row[1] || 'GASTO',
+                        concepto: row[2] || '',
+                        monto: Number(row[3]) || 0,
+                        estatus: row[4] || 'DEDUCIBLE',
+                        rubro: row[5] || 'OTROS_GASTOS_ND',
+                        ivaExcel: row[6] !== undefined ? row[6] : null,
+                        retIva: Number(row[7]) || 0
+                    }));
+                    saveToLocalStorage();
+                    return true;
+                }
+            } catch (e) {
+                console.error('Error al decodificar datos del enlace:', e);
+            }
+            return false;
+        }
+
+        // Copiar enlace listo para compartir con toda la información incrustada
+        function copyShareableLink() {
+            syncStateToUrlHash();
+            const shareUrl = window.location.href;
+
+            const tempInput = document.createElement('textarea');
+            tempInput.value = shareUrl;
+            tempInput.style.position = 'fixed';
+            tempInput.style.opacity = '0';
+            document.body.appendChild(tempInput);
+            tempInput.select();
+
+            try {
+                document.execCommand('copy');
+                showToast('¡Enlace copiado! Cualquier persona que lo abra verá tus datos exactos del Excel.', 'success');
+            } catch (err) {
+                showToast('No se pudo copiar automáticamente. Copia la URL desde la barra de tu navegador.', 'info');
+            } finally {
+                document.body.removeChild(tempInput);
+            }
+        }
+
+        function saveToLocalStorage() {
+            try {
+                localStorage.setItem('troma_resico_data_v2', JSON.stringify({
+                    transactions: appState.transactions,
+                    fileName: appState.fileName
+                }));
+            } catch (e) { /* Ignorar si está restringido */ }
+        }
+
+        function resetToDefaultData() {
+            appState.transactions = DEFAULT_TROMA_DATA.map(item => ({ ...item, id: crypto.randomUUID() }));
+            appState.fileName = 'LINEA INGREOS GASTOS TROMA.xlsx (Base Precargada)';
+            appState.selectedMonth = 'ALL';
+            saveToLocalStorage();
+            try { window.history.replaceState(null, '', window.location.pathname + window.location.search); } catch (e) {}
+            populateMonthSelector();
+            recalculateAll();
+            showToast('Datos base de TROMA restaurados.', 'info');
+        }
+
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const colors = {
+                success: 'bg-emerald-900/95 border-emerald-500/50 text-emerald-100',
+                error: 'bg-rose-900/95 border-rose-500/50 text-rose-100',
+                info: 'bg-slate-800/95 border-slate-600 text-slate-100'
+            };
+            const toast = document.createElement('div');
+            toast.className = `pointer-events-auto px-4 py-3 rounded-xl border shadow-xl text-xs font-medium flex items-center gap-2 transition-all duration-300 ${colors[type] || colors.info}`;
+            toast.textContent = message;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => toast.remove(), 300);
+            }, 3500);
+        }
+
+        // Inicialización al cargar
+        window.onload = function() {
+            // 1. Prioridad máxima: Si el enlace compartido contiene datos (#data=...), cargarlos primero
+            const loadedFromLink = loadStateFromUrlHash();
+
+            if (!loadedFromLink) {
+                try {
+                    const saved = localStorage.getItem('troma_resico_data_v2');
+                    if (saved) {
+                        const parsed = JSON.parse(saved);
+                        if (parsed.transactions && parsed.transactions.length > 0) {
+                            appState.transactions = parsed.transactions;
+                            appState.fileName = parsed.fileName || appState.fileName;
+                        } else {
+                            appState.transactions = DEFAULT_TROMA_DATA.map(item => ({ ...item, id: crypto.randomUUID() }));
+                        }
+                    } else {
+                        appState.transactions = DEFAULT_TROMA_DATA.map(item => ({ ...item, id: crypto.randomUUID() }));
+                    }
+                } catch (e) {
+                    appState.transactions = DEFAULT_TROMA_DATA.map(item => ({ ...item, id: crypto.randomUUID() }));
+                }
+            } else {
+                showToast(`Datos cargados desde el enlace compartido (${appState.transactions.length} movimientos).`, 'success');
+            }
+
+            populateMonthSelector();
+            recalculateAll();
+            lucide.createIcons();
+        };
+    </script>
+</body>
+</html>
